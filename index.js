@@ -60,7 +60,32 @@ function nearestColor(rgb) {
   let bestDistance = Infinity;
   let best = null;
 
+  const maxVal = Math.max(rgb.r, rgb.g, rgb.b);
+  const minVal = Math.min(rgb.r, rgb.g, rgb.b);
+  const isNeutral = (maxVal - minVal) < 35;
+  const isBlueish = rgb.b > rgb.r;
+
+  // Preservasi outline: jika abu-abu dan agak gelap (r < 195), langsung petakan ke Hitam (HT)
+  if (isNeutral && rgb.r < 195) {
+    return COLOR_MAP.find(c => c.code === "HT");
+  }
+
   for (const ref of COLOR_MAP) {
+    // Jika pixel netral (gray), hanya cocokkan dengan Putih (PT) dan Hitam (HT)
+    if (isNeutral && ref.code !== "PT" && ref.code !== "HT") {
+      continue;
+    }
+
+    // Jika pixel kebiruan (B > R), jangan cocokkan dengan warna kemerahan/kuning (PK, MR, JG, KN)
+    if (isBlueish && (ref.code === "PK" || ref.code === "MR" || ref.code === "JG" || ref.code === "KN")) {
+      continue;
+    }
+
+    // Jika selisih Blue - Green kurang dari 40, pixel tersebut bukan Pink (karena Pink memiliki selisih 75)
+    if ((rgb.b - rgb.g) < 40 && ref.code === "PK") {
+      continue;
+    }
+
     const [r, g, b] = ref.rgb;
     const distance =
       (rgb.r - r) ** 2 + (rgb.g - g) ** 2 + (rgb.b - b) ** 2;
@@ -147,9 +172,8 @@ async function loadGambarGrid(imagePath) {
     console.log(
       `  Ukuran asli ${img.bitmap.width}x${img.bitmap.height} -> di-resize ke ${WIDTH}x${HEIGHT}`
     );
-    // RESIZE_NEAREST_NEIGHBOR = setara Image.Resampling.NEAREST di PIL,
-    // dipakai supaya warna pixel tidak "tercampur" (blur) saat resize.
-    img.resize(WIDTH, HEIGHT, Jimp.RESIZE_NEAREST_NEIGHBOR);
+    // Menggunakan bilinear resize default agar detail garis tipis (seperti mata) tidak terpotong
+    img.resize(WIDTH, HEIGHT);
   }
 
   const grid = new Map(); // key: "y,x" -> { value, hex, code }
@@ -157,8 +181,14 @@ async function loadGambarGrid(imagePath) {
   for (let y = 0; y < HEIGHT; y++) {
     for (let x = 0; x < WIDTH; x++) {
       const rgba = Jimp.intToRGBA(img.getPixelColor(x, y));
-      // .convert("RGB") di Python otomatis buang alpha channel -> di sini alpha diabaikan juga
-      const nearest = nearestColor(rgba);
+      // Blend dengan background putih jika ada transparansi (alpha channel)
+      const alpha = rgba.a / 255;
+      const blendedRgb = {
+        r: Math.round(rgba.r * alpha + 255 * (1 - alpha)),
+        g: Math.round(rgba.g * alpha + 255 * (1 - alpha)),
+        b: Math.round(rgba.b * alpha + 255 * (1 - alpha))
+      };
+      const nearest = nearestColor(blendedRgb);
 
       const action = nearest.code === "PT" ? "D" : DEFAULT_ACTION;
       const value = `${nearest.code}-${action}`;
