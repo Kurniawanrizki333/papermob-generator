@@ -36,6 +36,9 @@ const ExcelJS = require("exceljs");
 
 const WIDTH = 110;
 const HEIGHT = 80;
+const SUPER_SAMPLE = 4;
+const INK_THRESHOLD = 42;
+const MIN_INK_COVERAGE = 0.08;
 
 // Sama seperti COLOR_MAP di Python, urutannya dijaga
 // agar hasil nearest_color konsisten.
@@ -51,6 +54,23 @@ const COLOR_MAP = [
 ];
 
 const DEFAULT_ACTION = "B";
+
+function blendWhite(rgba) {
+  const alpha = rgba.a / 255;
+  return {
+    r: Math.round(rgba.r * alpha + 255 * (1 - alpha)),
+    g: Math.round(rgba.g * alpha + 255 * (1 - alpha)),
+    b: Math.round(rgba.b * alpha + 255 * (1 - alpha)),
+  };
+}
+
+function colorDistanceToWhite(rgb) {
+  return Math.sqrt((255 - rgb.r) ** 2 + (255 - rgb.g) ** 2 + (255 - rgb.b) ** 2);
+}
+
+function isInkPixel(rgb) {
+  return colorDistanceToWhite(rgb) >= INK_THRESHOLD;
+}
 
 // ======================================================
 // Cari warna terdekat (sama seperti nearest_color())
@@ -172,23 +192,53 @@ async function loadGambarGrid(imagePath) {
     console.log(
       `  Ukuran asli ${img.bitmap.width}x${img.bitmap.height} -> di-resize ke ${WIDTH}x${HEIGHT}`
     );
-    // Menggunakan bilinear resize default agar detail garis tipis (seperti mata) tidak terpotong
-    img.resize(WIDTH, HEIGHT);
   }
+
+  const source = new Jimp(WIDTH * SUPER_SAMPLE, HEIGHT * SUPER_SAMPLE, 0xffffffff);
+  const fitted = img.clone();
+  fitted.contain(
+    WIDTH * SUPER_SAMPLE,
+    HEIGHT * SUPER_SAMPLE,
+    Jimp.HORIZONTAL_ALIGN_CENTER | Jimp.VERTICAL_ALIGN_MIDDLE
+  );
+  source.composite(fitted, 0, 0);
 
   const grid = new Map(); // key: "y,x" -> { value, hex, code }
 
   for (let y = 0; y < HEIGHT; y++) {
     for (let x = 0; x < WIDTH; x++) {
-      const rgba = Jimp.intToRGBA(img.getPixelColor(x, y));
-      // Blend dengan background putih jika ada transparansi (alpha channel)
-      const alpha = rgba.a / 255;
-      const blendedRgb = {
-        r: Math.round(rgba.r * alpha + 255 * (1 - alpha)),
-        g: Math.round(rgba.g * alpha + 255 * (1 - alpha)),
-        b: Math.round(rgba.b * alpha + 255 * (1 - alpha))
-      };
-      const nearest = nearestColor(blendedRgb);
+      const counts = new Map();
+      let inkPixels = 0;
+
+      for (let by = 0; by < SUPER_SAMPLE; by++) {
+        for (let bx = 0; bx < SUPER_SAMPLE; bx++) {
+          const rgba = Jimp.intToRGBA(source.getPixelColor(
+            x * SUPER_SAMPLE + bx,
+            y * SUPER_SAMPLE + by
+          ));
+          const rgb = blendWhite(rgba);
+          if (!isInkPixel(rgb)) continue;
+
+          const ref = nearestColor(rgb);
+          if (ref.code === "PT") continue;
+
+          inkPixels++;
+          counts.set(ref.code, (counts.get(ref.code) || 0) + 1);
+        }
+      }
+
+      let nearest = COLOR_MAP[0];
+      if (inkPixels / (SUPER_SAMPLE * SUPER_SAMPLE) >= MIN_INK_COVERAGE && counts.size > 0) {
+        let bestCode = null;
+        let bestCount = -1;
+        for (const [code, count] of counts) {
+          if (count > bestCount) {
+            bestCode = code;
+            bestCount = count;
+          }
+        }
+        nearest = COLOR_MAP.find(c => c.code === bestCode) || nearest;
+      }
 
       const action = nearest.code === "PT" ? "D" : DEFAULT_ACTION;
       const value = `${nearest.code}-${action}`;

@@ -105,7 +105,7 @@
   .dims{ display:flex; gap:1.5rem; flex-wrap:wrap; align-items:flex-end; }
   .field{ display:flex; flex-direction:column; gap:6px; }
   .field label{ font-family:var(--mono); font-size:12px; color:var(--ink-dim); }
-  .field input[type="number"]{
+  .field input[type="number"], .field select{
     width:110px;
     background:var(--panel-2);
     border:1px solid var(--line-strong);
@@ -115,7 +115,8 @@
     padding:9px 10px;
     border-radius:6px;
   }
-  .field input[type="number"]:focus{
+  .field select{ width:190px; }
+  .field input[type="number"]:focus, .field select:focus{
     outline:none;
     border-color:var(--accent);
   }
@@ -472,7 +473,15 @@
         <label for="inpHeight">Height (baris)</label>
         <input type="number" id="inpHeight" value="80" min="1" max="400" />
       </div>
-      <div class="dims-note">Gambar yang ukurannya berbeda akan otomatis di-resize memakai <b>nearest neighbor</b>, supaya warna pixel tidak blur / tercampur.</div>
+      <div class="field">
+        <label for="inpMode">Mode gambar</label>
+        <select id="inpMode">
+          <option value="text" selected>Teks / poster</option>
+          <option value="auto">Otomatis</option>
+          <option value="pixel">Pixel art</option>
+        </select>
+      </div>
+      <div class="dims-note">Mode <b>Teks / poster</b> menjaga huruf, border, dan ornamen tipis dengan sampling mayoritas warna. Pakai <b>Pixel art</b> kalau gambar memang sudah dibuat persis sesuai grid.</div>
     </div>
     <div class="warn-line" id="dimsWarn">Grid besar ( &gt; 150 &times; 150 ) bisa memperlambat proses di browser, terutama untuk banyak gambar sekaligus.</div>
   </section>
@@ -533,6 +542,9 @@
     { rgb:[0,176,80],    code:"HJ", hex:"00B050", name:"Hijau" },
     { rgb:[255,165,0],   code:"JG", hex:"FFA500", name:"Jingga" },
   ];
+  const SUPER_SAMPLE = 4;
+  const INK_THRESHOLD = 42;
+  const MIN_INK_COVERAGE = 0.08;
 
   function actionFor(code){
     return code === "PT" ? "D" : "B";
@@ -573,6 +585,14 @@
     return best;
   }
 
+  function colorDistanceToWhite(r,g,b){
+    return Math.sqrt((255-r)**2 + (255-g)**2 + (255-b)**2);
+  }
+
+  function isInkPixel(r,g,b){
+    return colorDistanceToWhite(r,g,b) >= INK_THRESHOLD;
+  }
+
   // ======================================================
   // STATE
   // ======================================================
@@ -585,6 +605,7 @@
   const el = {
     inpWidth: document.getElementById("inpWidth"),
     inpHeight: document.getElementById("inpHeight"),
+    inpMode: document.getElementById("inpMode"),
     dimsWarn: document.getElementById("dimsWarn"),
     dropzone: document.getElementById("dropzone"),
     fileInput: document.getElementById("fileInput"),
@@ -739,38 +760,111 @@
   }
 
   // ======================================================
-  // Image -> resized canvas (bilinear scaling & white background fill)
+  // Image -> processed canvas
   // ======================================================
-  function loadResizedCanvas(url, w, h){
+  function loadProcessedCanvas(url, w, h, mode){
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.onload = () => {
+        const useTextMode = mode === "text" || (mode === "auto" && looksLikeTextGraphic(img));
+        const scale = useTextMode ? SUPER_SAMPLE : 1;
         const canvas = document.createElement("canvas");
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext("2d");
+        canvas.width = w * scale;
+        canvas.height = h * scale;
+        const ctx = canvas.getContext("2d", { willReadFrequently:true });
         ctx.fillStyle = "#FFFFFF";
-        ctx.fillRect(0, 0, w, h);
-        ctx.imageSmoothingEnabled = true;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.imageSmoothingEnabled = mode !== "pixel";
         ctx.imageSmoothingQuality = "high";
-        ctx.drawImage(img, 0, 0, w, h);
-        resolve(canvas);
+
+        if(useTextMode){
+          const sourceRatio = img.naturalWidth / img.naturalHeight;
+          const targetRatio = canvas.width / canvas.height;
+          let drawW = canvas.width;
+          let drawH = canvas.height;
+          let drawX = 0;
+          let drawY = 0;
+
+          if(sourceRatio > targetRatio){
+            drawW = canvas.width;
+            drawH = Math.round(canvas.width / sourceRatio);
+            drawY = Math.round((canvas.height - drawH) / 2);
+          }else{
+            drawH = canvas.height;
+            drawW = Math.round(canvas.height * sourceRatio);
+            drawX = Math.round((canvas.width - drawW) / 2);
+          }
+
+          ctx.drawImage(img, drawX, drawY, drawW, drawH);
+        }else{
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        }
+
+        resolve({ canvas, scale, mode: useTextMode ? "text" : mode });
       };
       img.onerror = () => reject(new Error("Gagal membuka gambar"));
       img.src = url;
     });
   }
 
-  function gridFromCanvas(canvas, w, h){
+  function looksLikeTextGraphic(img){
+    return img.naturalWidth > 500 || img.naturalHeight > 500;
+  }
+
+  function gridFromCanvas(processed, w, h){
+    const canvas = processed.canvas || processed;
+    const scale = processed.scale || 1;
     const ctx = canvas.getContext("2d");
-    const data = ctx.getImageData(0, 0, w, h).data;
+    const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
     const grid = new Map();
 
     for(let y = 0; y < h; y++){
       for(let x = 0; x < w; x++){
-        const idx = (y * w + x) * 4;
-        const r = data[idx], g = data[idx+1], b = data[idx+2];
-        const ref = nearestColor(r, g, b);
+        let ref = COLOR_MAP[0];
+
+        if(scale > 1){
+          const counts = {};
+          let inkPixels = 0;
+
+          for(let by = 0; by < scale; by++){
+            for(let bx = 0; bx < scale; bx++){
+              const px = x * scale + bx;
+              const py = y * scale + by;
+              const idx = (py * canvas.width + px) * 4;
+              const alpha = data[idx+3] / 255;
+              const r = Math.round(data[idx] * alpha + 255 * (1-alpha));
+              const g = Math.round(data[idx+1] * alpha + 255 * (1-alpha));
+              const b = Math.round(data[idx+2] * alpha + 255 * (1-alpha));
+
+              if(!isInkPixel(r,g,b)) continue;
+
+              const nearest = nearestColor(r,g,b);
+              if(nearest.code === "PT") continue;
+              inkPixels++;
+              counts[nearest.code] = (counts[nearest.code] || 0) + 1;
+            }
+          }
+
+          if(inkPixels / (scale * scale) >= MIN_INK_COVERAGE){
+            let bestCode = null;
+            let bestCount = -1;
+            for(const code in counts){
+              if(counts[code] > bestCount){
+                bestCode = code;
+                bestCount = counts[code];
+              }
+            }
+            ref = COLOR_MAP.find(c => c.code === bestCode) || ref;
+          }
+        }else{
+          const idx = (y * canvas.width + x) * 4;
+          const alpha = data[idx+3] / 255;
+          const r = Math.round(data[idx] * alpha + 255 * (1-alpha));
+          const g = Math.round(data[idx+1] * alpha + 255 * (1-alpha));
+          const b = Math.round(data[idx+2] * alpha + 255 * (1-alpha));
+          ref = nearestColor(r, g, b);
+        }
+
         const action = actionFor(ref.code);
         const value = ref.code + "-" + action;
         grid.set(y + "," + x, { value, hex: ref.hex, code: ref.code });
@@ -951,6 +1045,7 @@
 
     const W = parseInt(el.inpWidth.value) || 110;
     const H = parseInt(el.inpHeight.value) || 80;
+    const mode = el.inpMode.value || "text";
 
     if(W < 1 || H < 1){
       log("Width dan height harus lebih dari 0.", "err");
@@ -966,7 +1061,7 @@
     setProgress(2);
 
     try{
-      log("Mulai proses " + images.length + " gambar, grid " + W + "\u00d7" + H + " ...");
+      log("Mulai proses " + images.length + " gambar, grid " + W + "\u00d7" + H + ", mode " + mode + " ...");
 
       const workbook = new ExcelJS.Workbook();
       const daftarSheet = workbook.addWorksheet("Daftar Pixel");
@@ -980,8 +1075,8 @@
         const im = images[i];
         log("Memproses (" + (i+1) + "/" + images.length + "): " + im.name + " ...");
 
-        const canvas = await loadResizedCanvas(im.url, W, H);
-        const grid = gridFromCanvas(canvas, W, H);
+        const processed = await loadProcessedCanvas(im.url, W, H, mode);
+        const grid = gridFromCanvas(processed, W, H);
 
         const sheetName = safeSheetName(im.name, usedNames);
         const frameLabel = "Frame " + (i+1);
