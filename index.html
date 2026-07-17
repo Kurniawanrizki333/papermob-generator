@@ -1,1140 +1,1386 @@
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Papermob — Konversi Gambar ke Grid Excel</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
-<style>
-  :root{
-    --ink:#eae7dd;
-    --ink-dim:#a7a49a;
-    --bg:#15161a;
-    --panel:#1c1e24;
-    --panel-2:#212329;
-    --line:rgba(234,231,221,0.09);
-    --line-strong:rgba(234,231,221,0.18);
-    --paper:#f2ede0;
-    --accent:#ffb238;
-    --accent-ink:#3a2400;
-    --teal:#5eead4;
-    --teal-ink:#04302a;
-    --red:#ff6b6b;
-    --red-ink:#3a0d0d;
-    --radius:10px;
-    --mono: 'IBM Plex Mono', ui-monospace, monospace;
-    --sans: 'IBM Plex Sans', ui-sans-serif, sans-serif;
-  }
-
-  *{ box-sizing:border-box; }
-
-  body{
-    margin:0;
-    background:
-      radial-gradient(circle at 1px 1px, rgba(234,231,221,0.05) 1px, transparent 0) 0 0/24px 24px,
-      var(--bg);
-    color:var(--ink);
-    font-family:var(--sans);
-    line-height:1.5;
-    padding:2.5rem 1.5rem 5rem;
-  }
-
-  .wrap{ max-width:1100px; margin:0 auto; }
-
-  header{ margin-bottom:2.5rem; }
-
-  .eyebrow{
-    font-family:var(--mono);
-    font-size:12px;
-    letter-spacing:0.14em;
-    text-transform:uppercase;
-    color:var(--accent);
-    display:flex;
-    align-items:center;
-    gap:8px;
-    margin-bottom:0.75rem;
-  }
-  .eyebrow::before{
-    content:"";
-    width:8px; height:8px;
-    background:var(--accent);
-  }
-
-  h1{
-    font-family:var(--mono);
-    font-size:clamp(28px, 4vw, 40px);
-    font-weight:700;
-    margin:0 0 0.6rem;
-    letter-spacing:-0.01em;
-  }
-
-  header p{
-    color:var(--ink-dim);
-    font-size:15px;
-    max-width:56ch;
-    margin:0;
-  }
-
-  .panel{
-    background:var(--panel);
-    border:1px solid var(--line);
-    border-radius:var(--radius);
-    padding:1.5rem;
-    margin-bottom:1.5rem;
-  }
-
-  .panel h2{
-    font-family:var(--mono);
-    font-size:13px;
-    letter-spacing:0.08em;
-    text-transform:uppercase;
-    color:var(--ink-dim);
-    margin:0 0 1.1rem;
-    display:flex;
-    align-items:center;
-    gap:8px;
-  }
-  .panel h2 .num{
-    color:var(--accent);
-  }
-
-  /* dimension controls */
-  .dims{ display:flex; gap:1.5rem; flex-wrap:wrap; align-items:flex-end; }
-  .field{ display:flex; flex-direction:column; gap:6px; }
-  .field label{ font-family:var(--mono); font-size:12px; color:var(--ink-dim); }
-  .field input[type="number"], .field select{
-    width:110px;
-    background:var(--panel-2);
-    border:1px solid var(--line-strong);
-    color:var(--ink);
-    font-family:var(--mono);
-    font-size:16px;
-    padding:9px 10px;
-    border-radius:6px;
-  }
-  .field select{ width:190px; }
-  .field input[type="number"]:focus, .field select:focus{
-    outline:none;
-    border-color:var(--accent);
-  }
-  .dims-note{ font-size:13px; color:var(--ink-dim); flex:1; min-width:220px; }
-  .dims-note b{ color:var(--ink); font-weight:500; }
-  .warn-line{
-    display:none;
-    margin-top:0.9rem;
-    font-size:13px;
-    color:var(--accent);
-    font-family:var(--mono);
-    border-left:2px solid var(--accent);
-    padding-left:10px;
-  }
-  .warn-line.show{ display:block; }
-
-  /* drop zone */
-  .dropzone{
-    border:1.5px dashed var(--line-strong);
-    border-radius:var(--radius);
-    padding:2.2rem 1.5rem;
-    text-align:center;
-    cursor:pointer;
-    transition:border-color .15s ease, background .15s ease;
-  }
-  .dropzone.drag{
-    border-color:var(--accent);
-    background:rgba(255,178,56,0.06);
-  }
-  .dropzone .dz-title{
-    font-family:var(--mono);
-    font-size:15px;
-    margin-bottom:0.3rem;
-  }
-  .dropzone .dz-sub{
-    font-size:13px;
-    color:var(--ink-dim);
-  }
-  .dropzone input{ display:none; }
-
-  /* image list */
-  .imglist{ margin-top:1.2rem; display:flex; flex-direction:column; gap:8px; }
-  .imgrow{
-    display:flex;
-    align-items:center;
-    gap:12px;
-    background:var(--panel-2);
-    border:1px solid var(--line);
-    border-radius:8px;
-    padding:8px 10px;
-  }
-  .imgrow .thumb{
-    width:44px; height:32px;
-    background:#000;
-    border-radius:4px;
-    object-fit:cover;
-    flex-shrink:0;
-    image-rendering:pixelated;
-    border:1px solid var(--line-strong);
-  }
-  .imgrow .meta{ flex:1; min-width:0; }
-  .imgrow .frame-tag{
-    font-family:var(--mono);
-    font-size:11px;
-    color:var(--accent);
-    letter-spacing:0.05em;
-  }
-  .imgrow input.name{
-    display:block;
-    width:100%;
-    background:transparent;
-    border:none;
-    border-bottom:1px solid transparent;
-    color:var(--ink);
-    font-family:var(--mono);
-    font-size:14px;
-    padding:2px 0;
-  }
-  .imgrow input.name:focus{
-    outline:none;
-    border-bottom-color:var(--accent);
-  }
-  .imgrow .dims-tag{ font-size:12px; color:var(--ink-dim); white-space:nowrap; }
-  .imgrow button.rm{
-    background:transparent;
-    border:1px solid var(--line-strong);
-    color:var(--ink-dim);
-    font-family:var(--mono);
-    font-size:12px;
-    padding:5px 9px;
-    border-radius:6px;
-    cursor:pointer;
-    flex-shrink:0;
-  }
-  .imgrow button.rm:hover{ border-color:var(--red); color:var(--red); }
-
-  /* legend */
-  .legend{ display:grid; grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); gap:8px; }
-  .swatch{
-    display:flex;
-    align-items:center;
-    gap:9px;
-    background:var(--panel-2);
-    border:1px solid var(--line);
-    border-radius:6px;
-    padding:8px 10px;
-  }
-  .swatch .chip{
-    width:20px; height:20px;
-    border-radius:3px;
-    border:1px solid var(--line-strong);
-    flex-shrink:0;
-  }
-  .swatch .lbl{ font-family:var(--mono); font-size:12px; }
-  .swatch .lbl .code{ font-weight:700; }
-  .legend-note{
-    margin-top:1rem;
-    font-size:13px;
-    color:var(--ink-dim);
-    border-left:2px solid var(--teal);
-    padding-left:10px;
-  }
-  .legend-note b{ color:var(--teal); font-weight:600; }
-
-  /* action */
-  .action-row{
-    display:flex;
-    align-items:center;
-    gap:14px;
-    flex-wrap:wrap;
-  }
-  button.primary{
-    font-family:var(--mono);
-    font-size:14px;
-    font-weight:600;
-    letter-spacing:0.03em;
-    background:var(--accent);
-    color:var(--accent-ink);
-    border:none;
-    padding:13px 22px;
-    border-radius:8px;
-    cursor:pointer;
-  }
-  button.primary:hover{ filter:brightness(1.07); }
-  button.primary:disabled{
-    background:var(--panel-2);
-    color:var(--ink-dim);
-    cursor:not-allowed;
-  }
-  button.download{
-    font-family:var(--mono);
-    font-size:14px;
-    font-weight:600;
-    background:var(--teal);
-    color:var(--teal-ink);
-    border:none;
-    padding:13px 22px;
-    border-radius:8px;
-    cursor:pointer;
-    display:none;
-  }
-  button.download.show{ display:inline-block; }
-
-  .progress-wrap{
-    flex:1;
-    min-width:180px;
-    height:6px;
-    background:var(--panel-2);
-    border-radius:3px;
-    overflow:hidden;
-    display:none;
-  }
-  .progress-wrap.show{ display:block; }
-  .progress-bar{
-    height:100%;
-    width:0%;
-    background:var(--accent);
-    transition:width .12s linear;
-  }
-
-  /* log console */
-  .console{
-    margin-top:1.2rem;
-    background:#0d0e11;
-    border:1px solid var(--line);
-    border-radius:8px;
-    padding:12px 14px;
-    font-family:var(--mono);
-    font-size:12.5px;
-    color:#8fdc9c;
-    max-height:220px;
-    overflow-y:auto;
-    display:none;
-  }
-  .console.show{ display:block; }
-  .console div{ white-space:pre-wrap; padding:1px 0; }
-  .console div.err{ color:var(--red); }
-  .console div.ok{ color:var(--teal); }
-
-  .empty-hint{
-    font-size:13px;
-    color:var(--ink-dim);
-    text-align:center;
-    padding:0.5rem 0 0.2rem;
-  }
-
-  /* ===== PREVIEW ===== */
-  .preview-section{
-    display:none;
-    margin-top:1rem;
-  }
-  .preview-section.show{ display:block; }
-
-  .preview-tabs{
-    display:flex;
-    gap:6px;
-    flex-wrap:wrap;
-    margin-bottom:1rem;
-  }
-  .preview-tabs button{
-    font-family:var(--mono);
-    font-size:11px;
-    background:var(--panel-2);
-    color:var(--ink-dim);
-    border:1px solid var(--line);
-    padding:6px 14px;
-    border-radius:6px;
-    cursor:pointer;
-  }
-  .preview-tabs button.active{
-    background:var(--accent);
-    color:var(--accent-ink);
-    border-color:var(--accent);
-  }
-  .preview-tabs button:hover:not(.active){
-    border-color:var(--line-strong);
-  }
-
-  .preview-container{
-    background:var(--panel-2);
-    border:1px solid var(--line);
-    border-radius:8px;
-    padding:1rem;
-    overflow:auto;
-    max-height:600px;
-  }
-
-  .preview-grid-wrap{
-    display:inline-block;
-    image-rendering:pixelated;
-  }
-
-  .preview-grid-wrap .pg-row{
-    display:flex;
-    line-height:0;
-  }
-
-  .preview-grid-wrap .pg-cell{
-    width:24px;
-    height:24px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-family:var(--mono);
-    font-size:7px;
-    font-weight:600;
-    border:1px solid rgba(0,0,0,0.08);
-    flex-shrink:0;
-    text-align:center;
-    line-height:1.1;
-    word-break:break-all;
-    transition:all 0.1s;
-    position:relative;
-  }
-
-  .preview-grid-wrap .pg-cell .cell-code{
-    font-size:7px;
-    font-weight:600;
-  }
-
-  .preview-grid-wrap .pg-cell .cell-value{
-    font-size:6px;
-    opacity:0.7;
-    font-weight:400;
-  }
-
-  .preview-grid-wrap .pg-cell:hover{
-    transform:scale(1.8);
-    z-index:10;
-    box-shadow:0 0 12px rgba(0,0,0,0.7);
-    border-color:var(--accent);
-  }
-
-  .preview-stats{
-    margin-top:0.75rem;
-    font-size:13px;
-    color:var(--ink-dim);
-    display:flex;
-    gap:20px;
-    flex-wrap:wrap;
-  }
-  .preview-stats span b{ color:var(--ink); }
-
-  footer{
-    margin-top:2.5rem;
-    font-size:12px;
-    color:var(--ink-dim);
-    font-family:var(--mono);
-    text-align:center;
-  }
-
-  @media (max-width:520px){
-    .imgrow{ flex-wrap:wrap; }
-    .dims-tag{ order:3; width:100%; }
-    .preview-grid-wrap .pg-cell{
-      width:16px;
-      height:16px;
-      font-size:5px;
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Papermob — Konversi Gambar ke Grid Excel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+    rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+  <style>
+    :root {
+      --ink: #eae7dd;
+      --ink-dim: #a7a49a;
+      --bg: #15161a;
+      --panel: #1c1e24;
+      --panel-2: #212329;
+      --line: rgba(234, 231, 221, 0.09);
+      --line-strong: rgba(234, 231, 221, 0.18);
+      --paper: #f2ede0;
+      --accent: #ffb238;
+      --accent-ink: #3a2400;
+      --teal: #5eead4;
+      --teal-ink: #04302a;
+      --red: #ff6b6b;
+      --red-ink: #3a0d0d;
+      --radius: 10px;
+      --mono: 'IBM Plex Mono', ui-monospace, monospace;
+      --sans: 'IBM Plex Sans', ui-sans-serif, sans-serif;
     }
-    .preview-grid-wrap .pg-cell .cell-code{ font-size:5px; }
-    .preview-grid-wrap .pg-cell .cell-value{ display:none; }
-  }
 
-  /* scrollbar */
-  .preview-container::-webkit-scrollbar{
-    width:6px; height:6px;
-  }
-  .preview-container::-webkit-scrollbar-track{
-    background:var(--panel);
-  }
-  .preview-container::-webkit-scrollbar-thumb{
-    background:var(--line-strong);
-    border-radius:3px;
-  }
-</style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 1px 1px, rgba(234, 231, 221, 0.05) 1px, transparent 0) 0 0/24px 24px,
+        var(--bg);
+      color: var(--ink);
+      font-family: var(--sans);
+      line-height: 1.5;
+      padding: 2.5rem 1.5rem 5rem;
+    }
+
+    .wrap {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    header {
+      margin-bottom: 2.5rem;
+    }
+
+    .eyebrow {
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 0.75rem;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      background: var(--accent);
+    }
+
+    h1 {
+      font-family: var(--mono);
+      font-size: clamp(28px, 4vw, 40px);
+      font-weight: 700;
+      margin: 0 0 0.6rem;
+      letter-spacing: -0.01em;
+    }
+
+    header p {
+      color: var(--ink-dim);
+      font-size: 15px;
+      max-width: 56ch;
+      margin: 0;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .panel h2 {
+      font-family: var(--mono);
+      font-size: 13px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--ink-dim);
+      margin: 0 0 1.1rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .panel h2 .num {
+      color: var(--accent);
+    }
+
+    /* dimension controls */
+    .dims {
+      display: flex;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+      align-items: flex-end;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field label {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--ink-dim);
+    }
+
+    .field input[type="number"],
+    .field select {
+      width: 110px;
+      background: var(--panel-2);
+      border: 1px solid var(--line-strong);
+      color: var(--ink);
+      font-family: var(--mono);
+      font-size: 16px;
+      padding: 9px 10px;
+      border-radius: 6px;
+    }
+
+    .field select {
+      width: 190px;
+    }
+
+    .field input[type="number"]:focus,
+    .field select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .dims-note {
+      font-size: 13px;
+      color: var(--ink-dim);
+      flex: 1;
+      min-width: 220px;
+    }
+
+    .dims-note b {
+      color: var(--ink);
+      font-weight: 500;
+    }
+
+    .warn-line {
+      display: none;
+      margin-top: 0.9rem;
+      font-size: 13px;
+      color: var(--accent);
+      font-family: var(--mono);
+      border-left: 2px solid var(--accent);
+      padding-left: 10px;
+    }
+
+    .warn-line.show {
+      display: block;
+    }
+
+    /* drop zone */
+    .dropzone {
+      border: 1.5px dashed var(--line-strong);
+      border-radius: var(--radius);
+      padding: 2.2rem 1.5rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .15s ease, background .15s ease;
+    }
+
+    .dropzone.drag {
+      border-color: var(--accent);
+      background: rgba(255, 178, 56, 0.06);
+    }
+
+    .dropzone .dz-title {
+      font-family: var(--mono);
+      font-size: 15px;
+      margin-bottom: 0.3rem;
+    }
+
+    .dropzone .dz-sub {
+      font-size: 13px;
+      color: var(--ink-dim);
+    }
+
+    .dropzone input {
+      display: none;
+    }
+
+    /* image list */
+    .imglist {
+      margin-top: 1.2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .imgrow {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px 10px;
+    }
+
+    .imgrow .thumb {
+      width: 44px;
+      height: 32px;
+      background: #000;
+      border-radius: 4px;
+      object-fit: cover;
+      flex-shrink: 0;
+      image-rendering: pixelated;
+      border: 1px solid var(--line-strong);
+    }
+
+    .imgrow .meta {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .imgrow .frame-tag {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--accent);
+      letter-spacing: 0.05em;
+    }
+
+    .imgrow input.name {
+      display: block;
+      width: 100%;
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid transparent;
+      color: var(--ink);
+      font-family: var(--mono);
+      font-size: 14px;
+      padding: 2px 0;
+    }
+
+    .imgrow input.name:focus {
+      outline: none;
+      border-bottom-color: var(--accent);
+    }
+
+    .imgrow .dims-tag {
+      font-size: 12px;
+      color: var(--ink-dim);
+      white-space: nowrap;
+    }
+
+    .imgrow button.rm {
+      background: transparent;
+      border: 1px solid var(--line-strong);
+      color: var(--ink-dim);
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 5px 9px;
+      border-radius: 6px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .imgrow button.rm:hover {
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    /* legend */
+    .legend {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 8px;
+    }
+
+    .swatch {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 8px 10px;
+    }
+
+    .swatch .chip {
+      width: 20px;
+      height: 20px;
+      border-radius: 3px;
+      border: 1px solid var(--line-strong);
+      flex-shrink: 0;
+    }
+
+    .swatch .lbl {
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+
+    .swatch .lbl .code {
+      font-weight: 700;
+    }
+
+    .legend-note {
+      margin-top: 1rem;
+      font-size: 13px;
+      color: var(--ink-dim);
+      border-left: 2px solid var(--teal);
+      padding-left: 10px;
+    }
+
+    .legend-note b {
+      color: var(--teal);
+      font-weight: 600;
+    }
+
+    /* action */
+    .action-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    button.primary {
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      background: var(--accent);
+      color: var(--accent-ink);
+      border: none;
+      padding: 13px 22px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    button.primary:hover {
+      filter: brightness(1.07);
+    }
+
+    button.primary:disabled {
+      background: var(--panel-2);
+      color: var(--ink-dim);
+      cursor: not-allowed;
+    }
+
+    button.download {
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 600;
+      background: var(--teal);
+      color: var(--teal-ink);
+      border: none;
+      padding: 13px 22px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: none;
+    }
+
+    button.download.show {
+      display: inline-block;
+    }
+
+    .progress-wrap {
+      flex: 1;
+      min-width: 180px;
+      height: 6px;
+      background: var(--panel-2);
+      border-radius: 3px;
+      overflow: hidden;
+      display: none;
+    }
+
+    .progress-wrap.show {
+      display: block;
+    }
+
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: var(--accent);
+      transition: width .12s linear;
+    }
+
+    /* log console */
+    .console {
+      margin-top: 1.2rem;
+      background: #0d0e11;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-family: var(--mono);
+      font-size: 12.5px;
+      color: #8fdc9c;
+      max-height: 220px;
+      overflow-y: auto;
+      display: none;
+    }
+
+    .console.show {
+      display: block;
+    }
+
+    .console div {
+      white-space: pre-wrap;
+      padding: 1px 0;
+    }
+
+    .console div.err {
+      color: var(--red);
+    }
+
+    .console div.ok {
+      color: var(--teal);
+    }
+
+    .empty-hint {
+      font-size: 13px;
+      color: var(--ink-dim);
+      text-align: center;
+      padding: 0.5rem 0 0.2rem;
+    }
+
+    /* ===== PREVIEW ===== */
+    .preview-section {
+      display: none;
+      margin-top: 1rem;
+    }
+
+    .preview-section.show {
+      display: block;
+    }
+
+    .preview-tabs {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 1rem;
+    }
+
+    .preview-tabs button {
+      font-family: var(--mono);
+      font-size: 11px;
+      background: var(--panel-2);
+      color: var(--ink-dim);
+      border: 1px solid var(--line);
+      padding: 6px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .preview-tabs button.active {
+      background: var(--accent);
+      color: var(--accent-ink);
+      border-color: var(--accent);
+    }
+
+    .preview-tabs button:hover:not(.active) {
+      border-color: var(--line-strong);
+    }
+
+    .preview-container {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 1rem;
+      overflow: auto;
+      max-height: 600px;
+    }
+
+    .preview-grid-wrap {
+      display: inline-block;
+      image-rendering: pixelated;
+    }
+
+    .preview-grid-wrap .pg-row {
+      display: flex;
+      line-height: 0;
+    }
+
+    .preview-grid-wrap .pg-cell {
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--mono);
+      font-size: 7px;
+      font-weight: 600;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      flex-shrink: 0;
+      text-align: center;
+      line-height: 1.1;
+      word-break: break-all;
+      transition: all 0.1s;
+      position: relative;
+    }
+
+    .preview-grid-wrap .pg-cell .cell-code {
+      font-size: 7px;
+      font-weight: 600;
+    }
+
+    .preview-grid-wrap .pg-cell .cell-value {
+      font-size: 6px;
+      opacity: 0.7;
+      font-weight: 400;
+    }
+
+    .preview-grid-wrap .pg-cell:hover {
+      transform: scale(1.8);
+      z-index: 10;
+      box-shadow: 0 0 12px rgba(0, 0, 0, 0.7);
+      border-color: var(--accent);
+    }
+
+    .preview-stats {
+      margin-top: 0.75rem;
+      font-size: 13px;
+      color: var(--ink-dim);
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .preview-stats span b {
+      color: var(--ink);
+    }
+
+    footer {
+      margin-top: 2.5rem;
+      font-size: 12px;
+      color: var(--ink-dim);
+      font-family: var(--mono);
+      text-align: center;
+    }
+
+    @media (max-width:520px) {
+      .imgrow {
+        flex-wrap: wrap;
+      }
+
+      .dims-tag {
+        order: 3;
+        width: 100%;
+      }
+
+      .preview-grid-wrap .pg-cell {
+        width: 16px;
+        height: 16px;
+        font-size: 5px;
+      }
+
+      .preview-grid-wrap .pg-cell .cell-code {
+        font-size: 5px;
+      }
+
+      .preview-grid-wrap .pg-cell .cell-value {
+        display: none;
+      }
+    }
+
+    /* scrollbar */
+    .preview-container::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    .preview-container::-webkit-scrollbar-track {
+      background: var(--panel);
+    }
+
+    .preview-container::-webkit-scrollbar-thumb {
+      background: var(--line-strong);
+      border-radius: 3px;
+    }
+  </style>
 </head>
+
 <body>
-<div class="wrap">
+  <div class="wrap">
 
-  <header>
-    <div class="eyebrow">Papermob</div>
-    <h1>Gambar &rarr; grid kode warna &rarr; Excel</h1>
-    <p>Unggah gambar, tentukan ukuran grid, dan Papermob akan memetakan tiap pixel ke kode warna terdekat lalu menyusunnya jadi file Excel lengkap dengan sheet visual per gambar dan sheet daftar pixel gabungan. Semua proses berjalan di browser kamu &mdash; gambar tidak dikirim ke server manapun.</p>
-  </header>
+    <header>
+      <div class="eyebrow">Papermob</div>
+      <h1>Gambar &rarr; grid kode warna &rarr; Excel</h1>
+      <p>Unggah gambar, tentukan ukuran grid, dan Papermob akan memetakan tiap pixel ke kode warna terdekat lalu
+        menyusunnya jadi file Excel lengkap dengan sheet visual per gambar dan sheet daftar pixel gabungan. Semua proses
+        berjalan di browser kamu &mdash; gambar tidak dikirim ke server manapun.</p>
+    </header>
 
-  <section class="panel">
-    <h2><span class="num">01</span> Ukuran grid</h2>
-    <div class="dims">
-      <div class="field">
-        <label for="inpWidth">Width (kolom)</label>
-        <input type="number" id="inpWidth" value="110" min="1" max="400" />
+    <section class="panel">
+      <h2><span class="num">01</span> Ukuran grid</h2>
+      <div class="dims">
+        <div class="field">
+          <label for="inpWidth">Width (kolom)</label>
+          <input type="number" id="inpWidth" value="110" min="1" max="400" />
+        </div>
+        <div class="field">
+          <label for="inpHeight">Height (baris)</label>
+          <input type="number" id="inpHeight" value="80" min="1" max="400" />
+        </div>
+        <div class="field">
+          <label for="inpMode">Mode gambar</label>
+          <select id="inpMode">
+            <option value="text" selected>Teks / poster</option>
+            <option value="auto">Otomatis</option>
+            <option value="pixel">Pixel art</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="inpMethod">Metode deteksi</label>
+          <select id="inpMethod">
+            <option value="adaptive" selected>Adaptive Thresholding (Tebal &amp; Rapi)</option>
+            <option value="majority">Super Sampling / Majority Vote (Awal)</option>
+          </select>
+        </div>
+        <div class="dims-note">Mode <b>Teks / poster</b> menjaga huruf, border, dan ornamen tipis dengan sampling
+          mayoritas warna. Pakai <b>Pixel art</b> kalau gambar memang sudah dibuat persis sesuai grid.</div>
       </div>
-      <div class="field">
-        <label for="inpHeight">Height (baris)</label>
-        <input type="number" id="inpHeight" value="80" min="1" max="400" />
+      <div class="warn-line" id="dimsWarn">Grid besar ( &gt; 150 &times; 150 ) bisa memperlambat proses di browser,
+        terutama untuk banyak gambar sekaligus.</div>
+    </section>
+
+    <section class="panel">
+      <h2><span class="num">02</span> Gambar</h2>
+      <div class="dropzone" id="dropzone">
+        <div class="dz-title">Tarik &amp; taruh gambar di sini, atau klik untuk pilih file</div>
+        <div class="dz-sub">Mendukung PNG, JPG, WEBP &middot; bisa pilih banyak file sekaligus</div>
+        <input type="file" id="fileInput" accept="image/*" multiple />
       </div>
-      <div class="field">
-        <label for="inpMode">Mode gambar</label>
-        <select id="inpMode">
-          <option value="text" selected>Teks / poster</option>
-          <option value="auto">Otomatis</option>
-          <option value="pixel">Pixel art</option>
-        </select>
+
+      <div class="imglist" id="imgList"></div>
+      <div class="empty-hint" id="emptyHint">Belum ada gambar diunggah.</div>
+    </section>
+
+    <section class="panel">
+      <h2><span class="num">03</span> Legenda kode warna</h2>
+      <div class="legend" id="legend"></div>
+      <div class="legend-note"><b>Aturan akhiran:</b> pixel berwarna putih selalu diberi akhiran <b>-D</b>, sedangkan
+        semua warna lain diberi akhiran <b>-B</b>. Contoh: putih &rarr; <code>PT-D</code>, merah &rarr;
+        <code>MR-B</code>.
       </div>
-      <div class="dims-note">Mode <b>Teks / poster</b> menjaga huruf, border, dan ornamen tipis dengan sampling mayoritas warna. Pakai <b>Pixel art</b> kalau gambar memang sudah dibuat persis sesuai grid.</div>
-    </div>
-    <div class="warn-line" id="dimsWarn">Grid besar ( &gt; 150 &times; 150 ) bisa memperlambat proses di browser, terutama untuk banyak gambar sekaligus.</div>
-  </section>
+    </section>
 
-  <section class="panel">
-    <h2><span class="num">02</span> Gambar</h2>
-    <div class="dropzone" id="dropzone">
-      <div class="dz-title">Tarik &amp; taruh gambar di sini, atau klik untuk pilih file</div>
-      <div class="dz-sub">Mendukung PNG, JPG, WEBP &middot; bisa pilih banyak file sekaligus</div>
-      <input type="file" id="fileInput" accept="image/*" multiple />
-    </div>
-
-    <div class="imglist" id="imgList"></div>
-    <div class="empty-hint" id="emptyHint">Belum ada gambar diunggah.</div>
-  </section>
-
-  <section class="panel">
-    <h2><span class="num">03</span> Legenda kode warna</h2>
-    <div class="legend" id="legend"></div>
-    <div class="legend-note"><b>Aturan akhiran:</b> pixel berwarna putih selalu diberi akhiran <b>-D</b>, sedangkan semua warna lain diberi akhiran <b>-B</b>. Contoh: putih &rarr; <code>PT-D</code>, merah &rarr; <code>MR-B</code>.</div>
-  </section>
-
-  <section class="panel">
-    <h2><span class="num">04</span> Proses</h2>
-    <div class="action-row">
-      <button class="primary" id="btnConvert">Convert ke Excel</button>
-      <button class="download" id="btnDownload">Download hasil_papermob.xlsx</button>
-      <div class="progress-wrap" id="progressWrap"><div class="progress-bar" id="progressBar"></div></div>
-    </div>
-    <div class="console" id="consoleLog"></div>
-
-    <!-- PREVIEW SECTION -->
-    <div class="preview-section" id="previewSection">
-      <div class="preview-tabs" id="previewTabs"></div>
-      <div class="preview-container" id="previewContainer">
-        <div class="preview-grid-wrap" id="previewGrid"></div>
+    <section class="panel">
+      <h2><span class="num">04</span> Proses</h2>
+      <div class="action-row">
+        <button class="primary" id="btnConvert">Convert ke Excel</button>
+        <button class="download" id="btnDownload">Download hasil_papermob.xlsx</button>
+        <div class="progress-wrap" id="progressWrap">
+          <div class="progress-bar" id="progressBar"></div>
+        </div>
       </div>
-      <div class="preview-stats" id="previewStats"></div>
-    </div>
-  </section>
+      <div class="console" id="consoleLog"></div>
 
-  <footer>papermob &middot; berjalan sepenuhnya di browser, tanpa upload ke server</footer>
-</div>
+      <!-- PREVIEW SECTION -->
+      <div class="preview-section" id="previewSection">
+        <div class="preview-tabs" id="previewTabs"></div>
+        <div class="preview-container" id="previewContainer">
+          <div class="preview-grid-wrap" id="previewGrid"></div>
+        </div>
+        <div class="preview-stats" id="previewStats"></div>
+      </div>
+    </section>
 
-<script>
-(function(){
+    <footer>papermob &middot; berjalan sepenuhnya di browser, tanpa upload ke server</footer>
+  </div>
 
-  // ======================================================
-  // CONFIG
-  // ======================================================
-  const COLOR_MAP = [
-    { rgb:[255,255,255], code:"PT", hex:"FFFFFF", name:"Putih" },
-    { rgb:[34,34,34],    code:"HT", hex:"222222", name:"Hitam" },
-    { rgb:[255,105,180], code:"PK", hex:"FF69B4", name:"Pink" },
-    { rgb:[255,255,0],   code:"KN", hex:"FFFF00", name:"Kuning" },
-    { rgb:[0,0,139],     code:"BT", hex:"00008B", name:"Biru tua" },
-    { rgb:[255,0,0],     code:"MR", hex:"FF0000", name:"Merah" },
-    { rgb:[0,176,80],    code:"HJ", hex:"00B050", name:"Hijau" },
-    { rgb:[255,165,0],   code:"JG", hex:"FFA500", name:"Jingga" },
-  ];
-  const SUPER_SAMPLE = 4;
-  const INK_THRESHOLD = 42;
-  const MIN_INK_COVERAGE = 0.08;
+  <script>
+    (function () {
 
-  function actionFor(code){
-    return code === "PT" ? "D" : "B";
-  }
+      // ======================================================
+      // CONFIG
+      // ======================================================
+      const COLOR_MAP = [
+        { rgb: [255, 255, 255], code: "PT", hex: "FFFFFF", name: "Putih" },
+        { rgb: [34, 34, 34], code: "HT", hex: "222222", name: "Hitam" },
+        { rgb: [255, 105, 180], code: "PK", hex: "FF69B4", name: "Pink" },
+        { rgb: [255, 255, 0], code: "KN", hex: "FFFF00", name: "Kuning" },
+        { rgb: [0, 0, 139], code: "BT", hex: "00008B", name: "Biru tua" },
+        { rgb: [255, 0, 0], code: "MR", hex: "FF0000", name: "Merah" },
+        { rgb: [0, 176, 80], code: "HJ", hex: "00B050", name: "Hijau" },
+        { rgb: [255, 165, 0], code: "JG", hex: "FFA500", name: "Jingga" },
+      ];
+      const INK_THRESHOLD = 15;
 
-  function nearestColor(r,g,b){
-    let bestDist = Infinity, best = null;
-    const maxVal = Math.max(r, g, b);
-    const minVal = Math.min(r, g, b);
-    const isNeutral = (maxVal - minVal) < 35;
-    const isBlueish = b > r;
+      // Excel Grid Cell Dimensions
+      const CELL_WIDTH = 8.66;
+      const CELL_HEIGHT = 45;
+      const CELL_FONT_SIZE = 11;
 
-    // Preservasi outline: jika abu-abu dan agak gelap (r < 195), langsung petakan ke Hitam (HT)
-    if (isNeutral && r < 195) {
-      return COLOR_MAP.find(c => c.code === "HT");
-    }
-
-    for(const ref of COLOR_MAP){
-      // Jika pixel netral (gray), hanya cocokkan dengan Putih (PT) dan Hitam (HT)
-      if (isNeutral && ref.code !== "PT" && ref.code !== "HT") {
-        continue;
-      }
-      
-      // Jika pixel kebiruan (B > r), jangan cocokkan dengan warna kemerahan/kuning (PK, MR, JG, KN)
-      if (isBlueish && (ref.code === "PK" || ref.code === "MR" || ref.code === "JG" || ref.code === "KN")) {
-        continue;
+      function actionFor(code) {
+        return code === "PT" ? "D" : "B";
       }
 
-      // Jika selisih Blue - Green kurang dari 40, pixel tersebut bukan Pink (karena Pink memiliki selisih 75)
-      if ((b - g) < 40 && ref.code === "PK") {
-        continue;
-      }
+      function nearestColor(r, g, b) {
+        let bestDist = Infinity, best = null;
+        const maxVal = Math.max(r, g, b);
+        const minVal = Math.min(r, g, b);
+        const isNeutral = (maxVal - minVal) < 35;
+        const isBlueish = b > r;
 
-      const [rr,rg,rb] = ref.rgb;
-      const d = (r-rr)**2 + (g-rg)**2 + (b-rb)**2;
-      if(d < bestDist){ bestDist = d; best = ref; }
-    }
-    return best;
-  }
-
-  function colorDistanceToWhite(r,g,b){
-    return Math.sqrt((255-r)**2 + (255-g)**2 + (255-b)**2);
-  }
-
-  function isInkPixel(r,g,b){
-    return colorDistanceToWhite(r,g,b) >= INK_THRESHOLD;
-  }
-
-  // ======================================================
-  // STATE
-  // ======================================================
-  let images = []; // { id, file, url, name, w, h }
-  let idSeq = 0;
-  let lastBlob = null;
-  let lastGrids = []; // simpan grid hasil convert untuk preview
-  let lastSheetNames = [];
-
-  const el = {
-    inpWidth: document.getElementById("inpWidth"),
-    inpHeight: document.getElementById("inpHeight"),
-    inpMode: document.getElementById("inpMode"),
-    dimsWarn: document.getElementById("dimsWarn"),
-    dropzone: document.getElementById("dropzone"),
-    fileInput: document.getElementById("fileInput"),
-    imgList: document.getElementById("imgList"),
-    emptyHint: document.getElementById("emptyHint"),
-    legend: document.getElementById("legend"),
-    btnConvert: document.getElementById("btnConvert"),
-    btnDownload: document.getElementById("btnDownload"),
-    progressWrap: document.getElementById("progressWrap"),
-    progressBar: document.getElementById("progressBar"),
-    consoleLog: document.getElementById("consoleLog"),
-    previewSection: document.getElementById("previewSection"),
-    previewTabs: document.getElementById("previewTabs"),
-    previewGrid: document.getElementById("previewGrid"),
-    previewStats: document.getElementById("previewStats"),
-  };
-
-  // ======================================================
-  // Legend render
-  // ======================================================
-  function renderLegend(){
-    el.legend.innerHTML = "";
-    for(const ref of COLOR_MAP){
-      const action = actionFor(ref.code);
-      const div = document.createElement("div");
-      div.className = "swatch";
-      div.innerHTML =
-        '<div class="chip" style="background:#' + ref.hex + '"></div>' +
-        '<div class="lbl">' + ref.name + '<br><span class="code">' + ref.code + '-' + action + '</span></div>';
-      el.legend.appendChild(div);
-    }
-  }
-  renderLegend();
-
-  // ======================================================
-  // Dimension inputs
-  // ======================================================
-  function checkDimsWarn(){
-    const w = parseInt(el.inpWidth.value) || 0;
-    const h = parseInt(el.inpHeight.value) || 0;
-    el.dimsWarn.classList.toggle("show", w > 150 || h > 150);
-  }
-  el.inpWidth.addEventListener("input", checkDimsWarn);
-  el.inpHeight.addEventListener("input", checkDimsWarn);
-
-  // ======================================================
-  // File handling
-  // ======================================================
-  el.dropzone.addEventListener("click", () => el.fileInput.click());
-  el.fileInput.addEventListener("change", e => addFiles(e.target.files));
-
-  ["dragenter","dragover"].forEach(evt =>
-    el.dropzone.addEventListener(evt, e => {
-      e.preventDefault();
-      el.dropzone.classList.add("drag");
-    })
-  );
-  ["dragleave","drop"].forEach(evt =>
-    el.dropzone.addEventListener(evt, e => {
-      e.preventDefault();
-      el.dropzone.classList.remove("drag");
-    })
-  );
-  el.dropzone.addEventListener("drop", e => addFiles(e.dataTransfer.files));
-
-  function addFiles(fileList){
-    for(const file of fileList){
-      if(!file.type.startsWith("image/")) continue;
-      const id = "img" + (idSeq++);
-      const url = URL.createObjectURL(file);
-      const baseName = file.name.replace(/\.[^.]+$/, "");
-      images.push({ id, file, url, name: baseName, w:null, h:null });
-    }
-    el.fileInput.value = "";
-    renderImgList();
-    // sembunyikan preview jika ada gambar baru
-    el.previewSection.classList.remove("show");
-    lastGrids = [];
-  }
-
-  function removeImage(id){
-    images = images.filter(im => im.id !== id);
-    renderImgList();
-    el.previewSection.classList.remove("show");
-    lastGrids = [];
-  }
-
-  function renderImgList(){
-    el.imgList.innerHTML = "";
-    el.emptyHint.style.display = images.length ? "none" : "block";
-
-    images.forEach((im, idx) => {
-      const row = document.createElement("div");
-      row.className = "imgrow";
-
-      const thumb = document.createElement("img");
-      thumb.className = "thumb";
-      thumb.src = im.url;
-
-      const meta = document.createElement("div");
-      meta.className = "meta";
-      meta.innerHTML = '<div class="frame-tag">FRAME ' + (idx+1) + '</div>';
-      const nameInput = document.createElement("input");
-      nameInput.className = "name";
-      nameInput.value = im.name;
-      nameInput.addEventListener("input", e => { im.name = e.target.value; });
-      meta.appendChild(nameInput);
-
-      const dimsTag = document.createElement("div");
-      dimsTag.className = "dims-tag";
-      dimsTag.textContent = "…";
-      const probe = new Image();
-      probe.onload = () => { dimsTag.textContent = probe.naturalWidth + "\u00d7" + probe.naturalHeight; };
-      probe.src = im.url;
-
-      const rmBtn = document.createElement("button");
-      rmBtn.className = "rm";
-      rmBtn.textContent = "hapus";
-      rmBtn.addEventListener("click", () => removeImage(im.id));
-
-      row.appendChild(thumb);
-      row.appendChild(meta);
-      row.appendChild(dimsTag);
-      row.appendChild(rmBtn);
-      el.imgList.appendChild(row);
-    });
-  }
-
-  // ======================================================
-  // Log console
-  // ======================================================
-  function log(msg, cls){
-    el.consoleLog.classList.add("show");
-    const line = document.createElement("div");
-    if(cls) line.className = cls;
-    line.textContent = msg;
-    el.consoleLog.appendChild(line);
-    el.consoleLog.scrollTop = el.consoleLog.scrollHeight;
-  }
-  function clearLog(){
-    el.consoleLog.innerHTML = "";
-    el.consoleLog.classList.remove("show");
-  }
-
-  function setProgress(pct){
-    el.progressWrap.classList.add("show");
-    el.progressBar.style.width = pct + "%";
-  }
-  function hideProgress(){
-    el.progressWrap.classList.remove("show");
-    el.progressBar.style.width = "0%";
-  }
-
-  // ======================================================
-  // Image -> processed canvas
-  // ======================================================
-  function loadProcessedCanvas(url, w, h, mode){
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => {
-        const useTextMode = mode === "text" || (mode === "auto" && looksLikeTextGraphic(img));
-        const scale = useTextMode ? SUPER_SAMPLE : 1;
-        const canvas = document.createElement("canvas");
-        canvas.width = w * scale;
-        canvas.height = h * scale;
-        const ctx = canvas.getContext("2d", { willReadFrequently:true });
-        ctx.fillStyle = "#FFFFFF";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.imageSmoothingEnabled = mode !== "pixel";
-        ctx.imageSmoothingQuality = "high";
-
-        if(useTextMode){
-          const sourceRatio = img.naturalWidth / img.naturalHeight;
-          const targetRatio = canvas.width / canvas.height;
-          let drawW = canvas.width;
-          let drawH = canvas.height;
-          let drawX = 0;
-          let drawY = 0;
-
-          if(sourceRatio > targetRatio){
-            drawW = canvas.width;
-            drawH = Math.round(canvas.width / sourceRatio);
-            drawY = Math.round((canvas.height - drawH) / 2);
-          }else{
-            drawH = canvas.height;
-            drawW = Math.round(canvas.height * sourceRatio);
-            drawX = Math.round((canvas.width - drawW) / 2);
-          }
-
-          ctx.drawImage(img, drawX, drawY, drawW, drawH);
-        }else{
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        // Preservasi outline: jika abu-abu dan agak gelap (r < 195), langsung petakan ke Hitam (HT)
+        if (isNeutral && r < 195) {
+          return COLOR_MAP.find(c => c.code === "HT");
         }
 
-        resolve({ canvas, scale, mode: useTextMode ? "text" : mode });
+        for (const ref of COLOR_MAP) {
+          // Jika pixel netral (gray), hanya cocokkan dengan Putih (PT) dan Hitam (HT)
+          if (isNeutral && ref.code !== "PT" && ref.code !== "HT") {
+            continue;
+          }
+
+          // Jika pixel kebiruan (B > r), jangan cocokkan dengan warna kemerahan/kuning (PK, MR, JG, KN)
+          if (isBlueish && (ref.code === "PK" || ref.code === "MR" || ref.code === "JG" || ref.code === "KN")) {
+            continue;
+          }
+
+          // Jika selisih Blue - Green kurang dari 40, pixel tersebut bukan Pink (karena Pink memiliki selisih 75)
+          if ((b - g) < 40 && ref.code === "PK") {
+            continue;
+          }
+
+          // Jika pixel lebih biru daripada hijau (B > G), jangan cocokkan dengan Hijau (HJ)
+          if (b > g && ref.code === "HJ") {
+            continue;
+          }
+
+          const [rr, rg, rb] = ref.rgb;
+          const d = (r - rr) ** 2 + (g - rg) ** 2 + (b - rb) ** 2;
+          if (d < bestDist) { bestDist = d; best = ref; }
+        }
+        return best;
+      }
+
+      function colorDistanceToWhite(r, g, b) {
+        return Math.sqrt((255 - r) ** 2 + (255 - g) ** 2 + (255 - b) ** 2);
+      }
+
+      function isInkPixel(r, g, b) {
+        return colorDistanceToWhite(r, g, b) >= INK_THRESHOLD;
+      }
+
+      // ======================================================
+      // STATE
+      // ======================================================
+      let images = []; // { id, file, url, name, w, h }
+      let idSeq = 0;
+      let lastBlob = null;
+      let lastGrids = []; // simpan grid hasil convert untuk preview
+      let lastSheetNames = [];
+
+      const el = {
+        inpWidth: document.getElementById("inpWidth"),
+        inpHeight: document.getElementById("inpHeight"),
+        inpMode: document.getElementById("inpMode"),
+        inpMethod: document.getElementById("inpMethod"),
+        dimsWarn: document.getElementById("dimsWarn"),
+        dropzone: document.getElementById("dropzone"),
+        fileInput: document.getElementById("fileInput"),
+        imgList: document.getElementById("imgList"),
+        emptyHint: document.getElementById("emptyHint"),
+        legend: document.getElementById("legend"),
+        btnConvert: document.getElementById("btnConvert"),
+        btnDownload: document.getElementById("btnDownload"),
+        progressWrap: document.getElementById("progressWrap"),
+        progressBar: document.getElementById("progressBar"),
+        consoleLog: document.getElementById("consoleLog"),
+        previewSection: document.getElementById("previewSection"),
+        previewTabs: document.getElementById("previewTabs"),
+        previewGrid: document.getElementById("previewGrid"),
+        previewStats: document.getElementById("previewStats"),
       };
-      img.onerror = () => reject(new Error("Gagal membuka gambar"));
-      img.src = url;
-    });
-  }
 
-  function looksLikeTextGraphic(img){
-    return img.naturalWidth > 500 || img.naturalHeight > 500;
-  }
+      // ======================================================
+      // Legend render
+      // ======================================================
+      function renderLegend() {
+        el.legend.innerHTML = "";
+        for (const ref of COLOR_MAP) {
+          const action = actionFor(ref.code);
+          const div = document.createElement("div");
+          div.className = "swatch";
+          div.innerHTML =
+            '<div class="chip" style="background:#' + ref.hex + '"></div>' +
+            '<div class="lbl">' + ref.name + '<br><span class="code">' + ref.code + '-' + action + '</span></div>';
+          el.legend.appendChild(div);
+        }
+      }
+      renderLegend();
 
-  function gridFromCanvas(processed, w, h){
-    const canvas = processed.canvas || processed;
-    const scale = processed.scale || 1;
-    const ctx = canvas.getContext("2d");
-    const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-    const grid = new Map();
+      // ======================================================
+      // Dimension inputs
+      // ======================================================
+      function checkDimsWarn() {
+        const w = parseInt(el.inpWidth.value) || 0;
+        const h = parseInt(el.inpHeight.value) || 0;
+        el.dimsWarn.classList.toggle("show", w > 150 || h > 150);
+      }
+      el.inpWidth.addEventListener("input", checkDimsWarn);
+      el.inpHeight.addEventListener("input", checkDimsWarn);
 
-    for(let y = 0; y < h; y++){
-      for(let x = 0; x < w; x++){
-        let ref = COLOR_MAP[0];
+      // ======================================================
+      // File handling
+      // ======================================================
+      el.dropzone.addEventListener("click", () => el.fileInput.click());
+      el.fileInput.addEventListener("change", e => addFiles(e.target.files));
 
-        if(scale > 1){
-          const counts = {};
-          let inkPixels = 0;
+      ["dragenter", "dragover"].forEach(evt =>
+        el.dropzone.addEventListener(evt, e => {
+          e.preventDefault();
+          el.dropzone.classList.add("drag");
+        })
+      );
+      ["dragleave", "drop"].forEach(evt =>
+        el.dropzone.addEventListener(evt, e => {
+          e.preventDefault();
+          el.dropzone.classList.remove("drag");
+        })
+      );
+      el.dropzone.addEventListener("drop", e => addFiles(e.dataTransfer.files));
 
-          for(let by = 0; by < scale; by++){
-            for(let bx = 0; bx < scale; bx++){
-              const px = x * scale + bx;
-              const py = y * scale + by;
-              const idx = (py * canvas.width + px) * 4;
-              const alpha = data[idx+3] / 255;
-              const r = Math.round(data[idx] * alpha + 255 * (1-alpha));
-              const g = Math.round(data[idx+1] * alpha + 255 * (1-alpha));
-              const b = Math.round(data[idx+2] * alpha + 255 * (1-alpha));
+      function addFiles(fileList) {
+        for (const file of fileList) {
+          if (!file.type.startsWith("image/")) continue;
+          const id = "img" + (idSeq++);
+          const url = URL.createObjectURL(file);
+          const baseName = file.name.replace(/\.[^.]+$/, "");
+          images.push({ id, file, url, name: baseName, w: null, h: null });
+        }
+        el.fileInput.value = "";
+        renderImgList();
+        // sembunyikan preview jika ada gambar baru
+        el.previewSection.classList.remove("show");
+        lastGrids = [];
+      }
 
-              if(!isInkPixel(r,g,b)) continue;
+      function removeImage(id) {
+        images = images.filter(im => im.id !== id);
+        renderImgList();
+        el.previewSection.classList.remove("show");
+        lastGrids = [];
+      }
 
-              const nearest = nearestColor(r,g,b);
-              if(nearest.code === "PT") continue;
-              inkPixels++;
-              counts[nearest.code] = (counts[nearest.code] || 0) + 1;
+      function renderImgList() {
+        el.imgList.innerHTML = "";
+        el.emptyHint.style.display = images.length ? "none" : "block";
+
+        images.forEach((im, idx) => {
+          const row = document.createElement("div");
+          row.className = "imgrow";
+
+          const thumb = document.createElement("img");
+          thumb.className = "thumb";
+          thumb.src = im.url;
+
+          const meta = document.createElement("div");
+          meta.className = "meta";
+          meta.innerHTML = '<div class="frame-tag">FRAME ' + (idx + 1) + '</div>';
+          const nameInput = document.createElement("input");
+          nameInput.className = "name";
+          nameInput.value = im.name;
+          nameInput.addEventListener("input", e => { im.name = e.target.value; });
+          meta.appendChild(nameInput);
+
+          const dimsTag = document.createElement("div");
+          dimsTag.className = "dims-tag";
+          dimsTag.textContent = "…";
+          const probe = new Image();
+          probe.onload = () => { dimsTag.textContent = probe.naturalWidth + "\u00d7" + probe.naturalHeight; };
+          probe.src = im.url;
+
+          const rmBtn = document.createElement("button");
+          rmBtn.className = "rm";
+          rmBtn.textContent = "hapus";
+          rmBtn.addEventListener("click", () => removeImage(im.id));
+
+          row.appendChild(thumb);
+          row.appendChild(meta);
+          row.appendChild(dimsTag);
+          row.appendChild(rmBtn);
+          el.imgList.appendChild(row);
+        });
+      }
+
+      // ======================================================
+      // Log console
+      // ======================================================
+      function log(msg, cls) {
+        el.consoleLog.classList.add("show");
+        const line = document.createElement("div");
+        if (cls) line.className = cls;
+        line.textContent = msg;
+        el.consoleLog.appendChild(line);
+        el.consoleLog.scrollTop = el.consoleLog.scrollHeight;
+      }
+      function clearLog() {
+        el.consoleLog.innerHTML = "";
+        el.consoleLog.classList.remove("show");
+      }
+
+      function setProgress(pct) {
+        el.progressWrap.classList.add("show");
+        el.progressBar.style.width = pct + "%";
+      }
+      function hideProgress() {
+        el.progressWrap.classList.remove("show");
+        el.progressBar.style.width = "0%";
+      }
+
+      // ======================================================
+      // Image -> processed canvas
+      // ======================================================
+      function loadProcessedCanvas(url, w, h, mode, method) {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => {
+            const useTextMode = mode === "text" || (mode === "auto" && looksLikeTextGraphic(img));
+            const scale = (method === "majority" && useTextMode) ? 4 : 1;
+            const canvas = document.createElement("canvas");
+            canvas.width = w * scale;
+            canvas.height = h * scale;
+            const ctx = canvas.getContext("2d", { willReadFrequently: true });
+            ctx.fillStyle = "#FFFFFF";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.imageSmoothingEnabled = mode !== "pixel";
+            ctx.imageSmoothingQuality = "high";
+
+            // Preserve aspect ratio (contain fitting)
+            const sourceRatio = img.naturalWidth / img.naturalHeight;
+            const targetRatio = canvas.width / canvas.height;
+            let drawW = canvas.width;
+            let drawH = canvas.height;
+            let drawX = 0;
+            let drawY = 0;
+
+            if (sourceRatio > targetRatio) {
+              drawW = canvas.width;
+              drawH = Math.round(canvas.width / sourceRatio);
+              drawY = Math.round((canvas.height - drawH) / 2);
+            } else {
+              drawH = canvas.height;
+              drawW = Math.round(canvas.height * sourceRatio);
+              drawX = Math.round((canvas.width - drawW) / 2);
             }
-          }
 
-          if(inkPixels / (scale * scale) >= MIN_INK_COVERAGE){
-            let bestCode = null;
-            let bestCount = -1;
-            for(const code in counts){
-              if(counts[code] > bestCount){
-                bestCode = code;
-                bestCount = counts[code];
+            ctx.drawImage(img, drawX, drawY, drawW, drawH);
+
+            resolve({ canvas, scale });
+          };
+          img.onerror = () => reject(new Error("Gagal membuka gambar"));
+          img.src = url;
+        });
+      }
+
+      function looksLikeTextGraphic(img) {
+        return img.naturalWidth > 500 || img.naturalHeight > 500;
+      }
+
+      function gridFromCanvas(processed, w, h, method) {
+        const canvas = processed.canvas || processed;
+        const scale = processed.scale || 1;
+        const ctx = canvas.getContext("2d");
+        const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+        const grid = new Map();
+
+        if (method === "majority") {
+          // --- METODE AWAL: Super Sampling & Majority Vote ---
+          const SUPER_SAMPLE = scale;
+          const MIN_INK_COVERAGE = 0.15;
+
+          for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x++) {
+              let ref = COLOR_MAP[0];
+
+              if (SUPER_SAMPLE > 1) {
+                const counts = {};
+                let inkPixels = 0;
+
+                for (let by = 0; by < SUPER_SAMPLE; by++) {
+                  for (let bx = 0; bx < SUPER_SAMPLE; bx++) {
+                    const px = x * SUPER_SAMPLE + bx;
+                    const py = y * SUPER_SAMPLE + by;
+                    const idx = (py * canvas.width + px) * 4;
+                    const alpha = data[idx + 3] / 255;
+                    const r = Math.round(data[idx] * alpha + 255 * (1 - alpha));
+                    const g = Math.round(data[idx + 1] * alpha + 255 * (1 - alpha));
+                    const b = Math.round(data[idx + 2] * alpha + 255 * (1 - alpha));
+
+                    if (!isInkPixel(r, g, b)) continue;
+
+                    const nearest = nearestColor(r, g, b);
+                    if (nearest.code === "PT") continue;
+                    inkPixels++;
+                    counts[nearest.code] = (counts[nearest.code] || 0) + 1;
+                  }
+                }
+
+                if (inkPixels / (SUPER_SAMPLE * SUPER_SAMPLE) >= MIN_INK_COVERAGE) {
+                  let bestCode = null;
+                  let bestCount = -1;
+                  for (const code in counts) {
+                    if (counts[code] > bestCount) {
+                      bestCode = code;
+                      bestCount = counts[code];
+                    }
+                  }
+                  ref = COLOR_MAP.find(c => c.code === bestCode) || ref;
+                }
+              } else {
+                const idx = (y * canvas.width + x) * 4;
+                const alpha = data[idx + 3] / 255;
+                const r = Math.round(data[idx] * alpha + 255 * (1 - alpha));
+                const g = Math.round(data[idx + 1] * alpha + 255 * (1 - alpha));
+                const b = Math.round(data[idx + 2] * alpha + 255 * (1 - alpha));
+                ref = nearestColor(r, g, b);
               }
+
+              const action = actionFor(ref.code);
+              const value = ref.code + "-" + action;
+              grid.set(y + "," + x, { value, hex: ref.hex, code: ref.code });
             }
-            ref = COLOR_MAP.find(c => c.code === bestCode) || ref;
           }
-        }else{
-          const idx = (y * canvas.width + x) * 4;
-          const alpha = data[idx+3] / 255;
-          const r = Math.round(data[idx] * alpha + 255 * (1-alpha));
-          const g = Math.round(data[idx+1] * alpha + 255 * (1-alpha));
-          const b = Math.round(data[idx+2] * alpha + 255 * (1-alpha));
-          ref = nearestColor(r, g, b);
+        } else {
+          // --- METODE SEKARANG: Adaptive Local Thresholding ---
+          // 1. Hitung inkiness untuk semua pixel
+          const inkiness = [];
+          const colors = [];
+          for (let y = 0; y < h; y++) {
+            inkiness[y] = [];
+            colors[y] = [];
+            for (let x = 0; x < w; x++) {
+              const idx = (y * canvas.width + x) * 4;
+              const alpha = data[idx + 3] / 255;
+              const r = Math.round(data[idx] * alpha + 255 * (1 - alpha));
+              const g = Math.round(data[idx + 1] * alpha + 255 * (1 - alpha));
+              const b = Math.round(data[idx + 2] * alpha + 255 * (1 - alpha));
+
+              inkiness[y][x] = colorDistanceToWhite(r, g, b);
+              colors[y][x] = { r, g, b };
+            }
+          }
+
+          // 2. Terapkan Adaptive Thresholding
+          const S = 2; // Radius window (5x5)
+          const C = 15; // Offset toleransi
+          const NOISE_CUTOFF = INK_THRESHOLD; // Gunakan INK_THRESHOLD sebagai cutoff noise
+
+          for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x++) {
+              const current = inkiness[y][x];
+
+              let sum = 0;
+              let count = 0;
+              for (let dy = -S; dy <= S; dy++) {
+                for (let dx = -S; dx <= S; dx++) {
+                  const ny = y + dy;
+                  const nx = x + dx;
+                  if (ny >= 0 && ny < h && nx >= 0 && nx < w) {
+                    sum += inkiness[ny][nx];
+                    count++;
+                  }
+                }
+              }
+              const localAvg = sum / count;
+
+              // Pixel dianggap ink jika lebih gelap dari rata-rata lokal dan di atas batas noise
+              const isInk = (current > NOISE_CUTOFF) && (current >= localAvg - C);
+
+              let nearest = COLOR_MAP.find(c => c.code === "PT");
+
+              if (isInk) {
+                const rgb = colors[y][x];
+                const found = nearestColor(rgb.r, rgb.g, rgb.b);
+                if (found) {
+                  nearest = found;
+                }
+              }
+
+              const action = nearest.code === "PT" ? "D" : "B";
+              const value = nearest.code + "-" + action;
+              grid.set(y + "," + x, { value, hex: nearest.hex, code: nearest.code });
+            }
+          }
+        }
+        return grid;
+      }
+
+      // ======================================================
+      // Sheet name uniqueness
+      // ======================================================
+      function safeSheetName(name, used) {
+        let cleaned = name.replace(/[:\\\/\?\*\[\]]/g, "_");
+        if (cleaned.length > 28) cleaned = cleaned.slice(0, 28);
+        if (!cleaned) cleaned = "Gambar";
+
+        let final = cleaned, counter = 2;
+        while (used.has(final)) {
+          const suffix = "_" + counter;
+          final = cleaned.slice(0, 31 - suffix.length) + suffix;
+          counter++;
+        }
+        used.add(final);
+        return final;
+      }
+
+      // ======================================================
+      // Build visual sheet
+      // ======================================================
+      function buildSheetVisual(workbook, sheetName, grid, w, h) {
+        const sheet = workbook.addWorksheet(sheetName);
+
+        for (let c = 1; c <= w; c++) sheet.getColumn(c).width = CELL_WIDTH;
+
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const { value, hex, code } = grid.get(y + "," + x);
+            const cell = sheet.getCell(y + 1, x + 1);
+            cell.value = value;
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF" + hex } };
+
+            const dark = code === "HT" || code === "BT";
+            cell.font = { name: "Calibri", color: { argb: dark ? "FFFFFFFF" : "FF000000" }, bold: true, size: CELL_FONT_SIZE };
+            cell.alignment = { horizontal: "center", vertical: "middle" };
+          }
+          sheet.getRow(y + 1).height = CELL_HEIGHT;
+        }
+      }
+
+      // ======================================================
+      // Build list sheet
+      // ======================================================
+      function buildSheetDaftar(sheet, frameLabels, allGrids, w, h) {
+        const header = ["Posisi", "Row", "Col", ...frameLabels];
+        sheet.addRow(header);
+        sheet.getRow(1).eachCell(cell => {
+          cell.font = { name: "Calibri", bold: true };
+          cell.alignment = { horizontal: "center", vertical: "middle" };
+        });
+
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const rowValues = [(y + 1) + "." + (x + 1), y + 1, x + 1];
+            for (const grid of allGrids) rowValues.push(grid.get(y + "," + x).value);
+            const row = sheet.addRow(rowValues);
+            row.eachCell(cell => {
+              cell.font = { name: "Calibri" };
+              cell.alignment = { horizontal: "center", vertical: "middle" };
+            });
+          }
         }
 
-        const action = actionFor(ref.code);
-        const value = ref.code + "-" + action;
-        grid.set(y + "," + x, { value, hex: ref.hex, code: ref.code });
+        sheet.getColumn(1).width = 12;
+        sheet.getColumn(2).width = 8;
+        sheet.getColumn(3).width = 8;
+        for (let i = 0; i < frameLabels.length; i++) sheet.getColumn(4 + i).width = 12;
+
+        sheet.views = [{ state: "frozen", xSplit: 3, ySplit: 1 }];
       }
-    }
-    return grid;
-  }
 
-  // ======================================================
-  // Sheet name uniqueness
-  // ======================================================
-  function safeSheetName(name, used){
-    let cleaned = name.replace(/[:\\\/\?\*\[\]]/g, "_");
-    if(cleaned.length > 28) cleaned = cleaned.slice(0, 28);
-    if(!cleaned) cleaned = "Gambar";
+      // ======================================================
+      // RENDER PREVIEW
+      // ======================================================
+      function renderPreview(grids, sheetNames, W, H) {
+        if (!grids.length) {
+          el.previewSection.classList.remove("show");
+          return;
+        }
 
-    let final = cleaned, counter = 2;
-    while(used.has(final)){
-      const suffix = "_" + counter;
-      final = cleaned.slice(0, 31 - suffix.length) + suffix;
-      counter++;
-    }
-    used.add(final);
-    return final;
-  }
+        el.previewSection.classList.add("show");
 
-  // ======================================================
-  // Build visual sheet
-  // ======================================================
-  function buildSheetVisual(workbook, sheetName, grid, w, h){
-    const sheet = workbook.addWorksheet(sheetName);
+        // tabs
+        el.previewTabs.innerHTML = "";
+        let activeTab = 0;
+        grids.forEach((grid, idx) => {
+          const btn = document.createElement("button");
+          btn.textContent = (sheetNames[idx] || "Frame " + (idx + 1)).slice(0, 18);
+          btn.dataset.idx = idx;
+          if (idx === 0) btn.classList.add("active");
+          btn.addEventListener("click", () => {
+            el.previewTabs.querySelectorAll("button").forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            renderGrid(grids[parseInt(btn.dataset.idx)], W, H);
+            updateStats(grids[parseInt(btn.dataset.idx)], W, H);
+          });
+          el.previewTabs.appendChild(btn);
+        });
 
-    for(let c = 1; c <= w; c++) sheet.getColumn(c).width = 9;
-
-    for(let y = 0; y < h; y++){
-      for(let x = 0; x < w; x++){
-        const { value, hex, code } = grid.get(y + "," + x);
-        const cell = sheet.getCell(y + 1, x + 1);
-        cell.value = value;
-        cell.fill = { type:"pattern", pattern:"solid", fgColor:{ argb:"FF"+hex } };
-
-        const dark = code === "HT" || code === "BT";
-        cell.font = { color:{ argb: dark ? "FFFFFFFF" : "FF000000" }, bold:true, size:9 };
-        cell.alignment = { horizontal:"center", vertical:"middle" };
+        // render first grid
+        renderGrid(grids[0], W, H);
+        updateStats(grids[0], W, H);
       }
-      sheet.getRow(y+1).height = 24;
-    }
-  }
 
-  // ======================================================
-  // Build list sheet
-  // ======================================================
-  function buildSheetDaftar(sheet, frameLabels, allGrids, w, h){
-    const header = ["Posisi","Row","Col", ...frameLabels];
-    sheet.addRow(header);
-    sheet.getRow(1).eachCell(cell => {
-      cell.font = { bold:true };
-      cell.alignment = { horizontal:"center", vertical:"middle" };
-    });
+      function renderGrid(grid, W, H) {
+        const container = el.previewGrid;
+        container.innerHTML = "";
 
-    for(let y = 0; y < h; y++){
-      for(let x = 0; x < w; x++){
-        const rowValues = [(y+1)+"."+(x+1), y+1, x+1];
-        for(const grid of allGrids) rowValues.push(grid.get(y+","+x).value);
-        sheet.addRow(rowValues);
+        // batasi ukuran preview untuk performa
+        const maxDisplay = 80;
+        const step = Math.ceil(Math.max(W, H) / maxDisplay);
+        const displayW = Math.ceil(W / step);
+        const displayH = Math.ceil(H / step);
+
+        // scaling untuk cell size
+        const cellSize = Math.min(28, Math.max(10, 600 / Math.max(displayW, displayH)));
+
+        for (let y = 0; y < H; y += step) {
+          const row = document.createElement("div");
+          row.className = "pg-row";
+          for (let x = 0; x < W; x += step) {
+            const cell = document.createElement("div");
+            cell.className = "pg-cell";
+            const data = grid.get(y + "," + x);
+            if (data) {
+              const isDark = data.code === "HT" || data.code === "BT";
+              cell.style.backgroundColor = "#" + data.hex;
+              cell.style.color = isDark ? "#ffffff" : "#000000";
+              cell.style.width = cellSize + "px";
+              cell.style.height = cellSize + "px";
+              cell.style.fontSize = Math.max(5, Math.min(9, cellSize * 0.3)) + "px";
+              cell.innerHTML = `<span class="cell-code">${data.code}</span>`;
+              // tambahkan value kecil di bawah untuk grid kecil
+              if (cellSize > 20) {
+                cell.innerHTML += `<span class="cell-value">-${actionFor(data.code)}</span>`;
+              }
+              cell.title = data.code + "-" + actionFor(data.code) + " (#" + data.hex + ")";
+            }
+            row.appendChild(cell);
+          }
+          container.appendChild(row);
+        }
       }
-    }
 
-    sheet.getColumn(1).width = 12;
-    sheet.getColumn(2).width = 8;
-    sheet.getColumn(3).width = 8;
-    for(let i = 0; i < frameLabels.length; i++) sheet.getColumn(4+i).width = 12;
+      function updateStats(grid, W, H) {
+        // hitung distribusi warna
+        const counts = {};
+        for (const [key, val] of grid) {
+          const code = val.code;
+          counts[code] = (counts[code] || 0) + 1;
+        }
 
-    sheet.views = [{ state:"frozen", xSplit:3, ySplit:1 }];
-  }
+        let statsHtml = `<span>Total pixel: <b>${W * H}</b></span>`;
+        statsHtml += ` <span>Ukuran: <b>${W} × ${H}</b></span>`;
+        for (const ref of COLOR_MAP) {
+          const c = counts[ref.code] || 0;
+          if (c > 0) {
+            const pct = ((c / (W * H)) * 100).toFixed(1);
+            statsHtml += ` <span><span style="display:inline-block;width:10px;height:10px;background:#${ref.hex};border-radius:2px;vertical-align:middle;margin-right:3px;"></span> <b>${ref.code}</b>: ${c} (${pct}%)</span>`;
+          }
+        }
+        el.previewStats.innerHTML = statsHtml;
+      }
 
-  // ======================================================
-  // RENDER PREVIEW
-  // ======================================================
-  function renderPreview(grids, sheetNames, W, H){
-    if(!grids.length) {
-      el.previewSection.classList.remove("show");
-      return;
-    }
+      // ======================================================
+      // Main convert flow
+      // ======================================================
+      async function convert() {
+        if (images.length === 0) {
+          log("Belum ada gambar yang diunggah.", "err");
+          return;
+        }
 
-    el.previewSection.classList.add("show");
+        const W = parseInt(el.inpWidth.value) || 110;
+        const H = parseInt(el.inpHeight.value) || 80;
+        const mode = el.inpMode.value || "text";
+        const method = el.inpMethod.value || "adaptive";
 
-    // tabs
-    el.previewTabs.innerHTML = "";
-    let activeTab = 0;
-    grids.forEach((grid, idx) => {
-      const btn = document.createElement("button");
-      btn.textContent = (sheetNames[idx] || "Frame "+(idx+1)).slice(0, 18);
-      btn.dataset.idx = idx;
-      if(idx === 0) btn.classList.add("active");
-      btn.addEventListener("click", () => {
-        el.previewTabs.querySelectorAll("button").forEach(b => b.classList.remove("active"));
-        btn.classList.add("active");
-        renderGrid(grids[parseInt(btn.dataset.idx)], W, H);
-        updateStats(grids[parseInt(btn.dataset.idx)], W, H);
+        if (W < 1 || H < 1) {
+          log("Width dan height harus lebih dari 0.", "err");
+          return;
+        }
+
+        clearLog();
+        el.btnConvert.disabled = true;
+        el.btnDownload.classList.remove("show");
+        el.previewSection.classList.remove("show");
+        lastBlob = null;
+        lastGrids = [];
+        setProgress(2);
+
+        try {
+          log("Mulai proses " + images.length + " gambar, grid " + W + "\u00d7" + H + ", mode " + mode + " ...");
+
+          const workbook = new ExcelJS.Workbook();
+          const daftarSheet = workbook.addWorksheet("Daftar Pixel");
+
+          const usedNames = new Set();
+          const frameLabels = [];
+          const allGrids = [];
+          const sheetNames = [];
+
+          for (let i = 0; i < images.length; i++) {
+            const im = images[i];
+            log("Memproses (" + (i + 1) + "/" + images.length + "): " + im.name + " ...");
+
+            const processed = await loadProcessedCanvas(im.url, W, H, mode, method);
+            const grid = gridFromCanvas(processed, W, H, method);
+
+            const sheetName = safeSheetName(im.name, usedNames);
+            const frameLabel = "Frame " + (i + 1);
+
+            frameLabels.push(frameLabel);
+            allGrids.push(grid);
+            sheetNames.push(sheetName);
+
+            buildSheetVisual(workbook, sheetName, grid, W, H);
+            log("  -> sheet '" + sheetName + "' selesai", "ok");
+
+            setProgress(5 + Math.round(((i + 1) / images.length) * 75));
+            await new Promise(r => setTimeout(r, 0));
+          }
+
+          log("Menyusun sheet 'Daftar Pixel' (" + (W * H) + " baris) ...");
+          buildSheetDaftar(daftarSheet, frameLabels, allGrids, W, H);
+          setProgress(90);
+
+          log("Menulis file xlsx ...");
+          const buffer = await workbook.xlsx.writeBuffer();
+          lastBlob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+          setProgress(100);
+
+          // simpan grid untuk preview
+          lastGrids = allGrids;
+          lastSheetNames = sheetNames;
+
+          // render preview
+          renderPreview(lastGrids, lastSheetNames, W, H);
+
+          log("SELESAI. Total gambar diproses: " + images.length, "ok");
+          el.btnDownload.classList.add("show");
+
+        } catch (err) {
+          log("Terjadi error: " + err.message, "err");
+          console.error(err);
+        } finally {
+          el.btnConvert.disabled = false;
+          setTimeout(hideProgress, 600);
+        }
+      }
+
+      el.btnConvert.addEventListener("click", convert);
+
+      el.btnDownload.addEventListener("click", () => {
+        if (!lastBlob) return;
+        const url = URL.createObjectURL(lastBlob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "hasil_papermob.xlsx";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
       });
-      el.previewTabs.appendChild(btn);
-    });
 
-    // render first grid
-    renderGrid(grids[0], W, H);
-    updateStats(grids[0], W, H);
-  }
-
-  function renderGrid(grid, W, H){
-    const container = el.previewGrid;
-    container.innerHTML = "";
-
-    // batasi ukuran preview untuk performa
-    const maxDisplay = 80;
-    const step = Math.ceil(Math.max(W, H) / maxDisplay);
-    const displayW = Math.ceil(W / step);
-    const displayH = Math.ceil(H / step);
-
-    // scaling untuk cell size
-    const cellSize = Math.min(28, Math.max(10, 600 / Math.max(displayW, displayH)));
-
-    for(let y = 0; y < H; y += step){
-      const row = document.createElement("div");
-      row.className = "pg-row";
-      for(let x = 0; x < W; x += step){
-        const cell = document.createElement("div");
-        cell.className = "pg-cell";
-        const data = grid.get(y + "," + x);
-        if(data){
-          const isDark = data.code === "HT" || data.code === "BT";
-          cell.style.backgroundColor = "#" + data.hex;
-          cell.style.color = isDark ? "#ffffff" : "#000000";
-          cell.style.width = cellSize + "px";
-          cell.style.height = cellSize + "px";
-          cell.style.fontSize = Math.max(5, Math.min(9, cellSize * 0.3)) + "px";
-          cell.innerHTML = `<span class="cell-code">${data.code}</span>`;
-          // tambahkan value kecil di bawah untuk grid kecil
-          if(cellSize > 20){
-            cell.innerHTML += `<span class="cell-value">-${actionFor(data.code)}</span>`;
-          }
-          cell.title = data.code + "-" + actionFor(data.code) + " (#" + data.hex + ")";
-        }
-        row.appendChild(cell);
-      }
-      container.appendChild(row);
-    }
-  }
-
-  function updateStats(grid, W, H){
-    // hitung distribusi warna
-    const counts = {};
-    for(const [key, val] of grid){
-      const code = val.code;
-      counts[code] = (counts[code] || 0) + 1;
-    }
-
-    let statsHtml = `<span>Total pixel: <b>${W * H}</b></span>`;
-    statsHtml += ` <span>Ukuran: <b>${W} × ${H}</b></span>`;
-    for(const ref of COLOR_MAP){
-      const c = counts[ref.code] || 0;
-      if(c > 0){
-        const pct = ((c / (W*H)) * 100).toFixed(1);
-        statsHtml += ` <span><span style="display:inline-block;width:10px;height:10px;background:#${ref.hex};border-radius:2px;vertical-align:middle;margin-right:3px;"></span> <b>${ref.code}</b>: ${c} (${pct}%)</span>`;
-      }
-    }
-    el.previewStats.innerHTML = statsHtml;
-  }
-
-  // ======================================================
-  // Main convert flow
-  // ======================================================
-  async function convert(){
-    if(images.length === 0){
-      log("Belum ada gambar yang diunggah.", "err");
-      return;
-    }
-
-    const W = parseInt(el.inpWidth.value) || 110;
-    const H = parseInt(el.inpHeight.value) || 80;
-    const mode = el.inpMode.value || "text";
-
-    if(W < 1 || H < 1){
-      log("Width dan height harus lebih dari 0.", "err");
-      return;
-    }
-
-    clearLog();
-    el.btnConvert.disabled = true;
-    el.btnDownload.classList.remove("show");
-    el.previewSection.classList.remove("show");
-    lastBlob = null;
-    lastGrids = [];
-    setProgress(2);
-
-    try{
-      log("Mulai proses " + images.length + " gambar, grid " + W + "\u00d7" + H + ", mode " + mode + " ...");
-
-      const workbook = new ExcelJS.Workbook();
-      const daftarSheet = workbook.addWorksheet("Daftar Pixel");
-
-      const usedNames = new Set();
-      const frameLabels = [];
-      const allGrids = [];
-      const sheetNames = [];
-
-      for(let i = 0; i < images.length; i++){
-        const im = images[i];
-        log("Memproses (" + (i+1) + "/" + images.length + "): " + im.name + " ...");
-
-        const processed = await loadProcessedCanvas(im.url, W, H, mode);
-        const grid = gridFromCanvas(processed, W, H);
-
-        const sheetName = safeSheetName(im.name, usedNames);
-        const frameLabel = "Frame " + (i+1);
-
-        frameLabels.push(frameLabel);
-        allGrids.push(grid);
-        sheetNames.push(sheetName);
-
-        buildSheetVisual(workbook, sheetName, grid, W, H);
-        log("  -> sheet '" + sheetName + "' selesai", "ok");
-
-        setProgress(5 + Math.round(((i+1) / images.length) * 75));
-        await new Promise(r => setTimeout(r, 0));
-      }
-
-      log("Menyusun sheet 'Daftar Pixel' (" + (W*H) + " baris) ...");
-      buildSheetDaftar(daftarSheet, frameLabels, allGrids, W, H);
-      setProgress(90);
-
-      log("Menulis file xlsx ...");
-      const buffer = await workbook.xlsx.writeBuffer();
-      lastBlob = new Blob([buffer], { type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-      setProgress(100);
-
-      // simpan grid untuk preview
-      lastGrids = allGrids;
-      lastSheetNames = sheetNames;
-
-      // render preview
-      renderPreview(lastGrids, lastSheetNames, W, H);
-
-      log("SELESAI. Total gambar diproses: " + images.length, "ok");
-      el.btnDownload.classList.add("show");
-
-    }catch(err){
-      log("Terjadi error: " + err.message, "err");
-      console.error(err);
-    }finally{
-      el.btnConvert.disabled = false;
-      setTimeout(hideProgress, 600);
-    }
-  }
-
-  el.btnConvert.addEventListener("click", convert);
-
-  el.btnDownload.addEventListener("click", () => {
-    if(!lastBlob) return;
-    const url = URL.createObjectURL(lastBlob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "hasil_papermob.xlsx";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 2000);
-  });
-
-})();
-</script>
+    })();
+  </script>
 </body>
+
 </html>

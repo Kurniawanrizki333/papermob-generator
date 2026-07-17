@@ -36,9 +36,12 @@ const ExcelJS = require("exceljs");
 
 const WIDTH = 110;
 const HEIGHT = 80;
-const SUPER_SAMPLE = 4;
-const INK_THRESHOLD = 42;
-const MIN_INK_COVERAGE = 0.08;
+const INK_THRESHOLD = 25;
+
+// Excel Grid Cell Dimensions
+const CELL_WIDTH = 8.66;
+const CELL_HEIGHT = 45;
+const CELL_FONT_SIZE = 11;
 
 // Sama seperti COLOR_MAP di Python, urutannya dijaga
 // agar hasil nearest_color konsisten.
@@ -103,6 +106,11 @@ function nearestColor(rgb) {
 
     // Jika selisih Blue - Green kurang dari 40, pixel tersebut bukan Pink (karena Pink memiliki selisih 75)
     if ((rgb.b - rgb.g) < 40 && ref.code === "PK") {
+      continue;
+    }
+
+    // Jika pixel lebih biru daripada hijau (B > G), jangan cocokkan dengan Hijau (HJ)
+    if (rgb.b > rgb.g && ref.code === "HJ") {
       continue;
     }
 
@@ -181,63 +189,72 @@ async function inputGambar() {
 }
 
 // ======================================================
-// Load & validasi gambar, kembalikan grid kode "KODE-AKSI"
-// (sama seperti load_gambar_grid())
+// Load & validasi gambar dengan metode Bicubic & Aspect Ratio Contain
 // ======================================================
 
 async function loadGambarGrid(imagePath) {
   const img = await Jimp.read(imagePath);
 
-  if (img.bitmap.width !== WIDTH || img.bitmap.height !== HEIGHT) {
-    console.log(
-      `  Ukuran asli ${img.bitmap.width}x${img.bitmap.height} -> di-resize ke ${WIDTH}x${HEIGHT}`
-    );
-  }
-
-  const source = new Jimp(WIDTH * SUPER_SAMPLE, HEIGHT * SUPER_SAMPLE, 0xffffffff);
+  const target = new Jimp(WIDTH, HEIGHT, 0xffffffff);
   const fitted = img.clone();
   fitted.contain(
-    WIDTH * SUPER_SAMPLE,
-    HEIGHT * SUPER_SAMPLE,
-    Jimp.HORIZONTAL_ALIGN_CENTER | Jimp.VERTICAL_ALIGN_MIDDLE
+    WIDTH,
+    HEIGHT,
+    Jimp.HORIZONTAL_ALIGN_CENTER | Jimp.VERTICAL_ALIGN_MIDDLE,
+    Jimp.RESIZE_BICUBIC
   );
-  source.composite(fitted, 0, 0);
+  target.composite(fitted, 0, 0);
+
+  // 1. Hitung inkiness dan simpan RGB
+  const inkiness = [];
+  const colors = [];
+  for (let y = 0; y < HEIGHT; y++) {
+    inkiness[y] = [];
+    colors[y] = [];
+    for (let x = 0; x < WIDTH; x++) {
+      const rgba = Jimp.intToRGBA(target.getPixelColor(x, y));
+      const rgb = blendWhite(rgba);
+      inkiness[y][x] = colorDistanceToWhite(rgb);
+      colors[y][x] = rgb;
+    }
+  }
 
   const grid = new Map(); // key: "y,x" -> { value, hex, code }
 
+  const S = 2; // Radius window (5x5)
+  const C = 15; // Offset toleransi
+  const NOISE_CUTOFF = INK_THRESHOLD; // Gunakan INK_THRESHOLD sebagai cutoff noise
+
+  // 2. Terapkan Adaptive Thresholding
   for (let y = 0; y < HEIGHT; y++) {
     for (let x = 0; x < WIDTH; x++) {
-      const counts = new Map();
-      let inkPixels = 0;
+      const current = inkiness[y][x];
 
-      for (let by = 0; by < SUPER_SAMPLE; by++) {
-        for (let bx = 0; bx < SUPER_SAMPLE; bx++) {
-          const rgba = Jimp.intToRGBA(source.getPixelColor(
-            x * SUPER_SAMPLE + bx,
-            y * SUPER_SAMPLE + by
-          ));
-          const rgb = blendWhite(rgba);
-          if (!isInkPixel(rgb)) continue;
-
-          const ref = nearestColor(rgb);
-          if (ref.code === "PT") continue;
-
-          inkPixels++;
-          counts.set(ref.code, (counts.get(ref.code) || 0) + 1);
-        }
-      }
-
-      let nearest = COLOR_MAP[0];
-      if (inkPixels / (SUPER_SAMPLE * SUPER_SAMPLE) >= MIN_INK_COVERAGE && counts.size > 0) {
-        let bestCode = null;
-        let bestCount = -1;
-        for (const [code, count] of counts) {
-          if (count > bestCount) {
-            bestCode = code;
-            bestCount = count;
+      let sum = 0;
+      let count = 0;
+      for (let dy = -S; dy <= S; dy++) {
+        for (let dx = -S; dx <= S; dx++) {
+          const ny = y + dy;
+          const nx = x + dx;
+          if (ny >= 0 && ny < HEIGHT && nx >= 0 && nx < WIDTH) {
+            sum += inkiness[ny][nx];
+            count++;
           }
         }
-        nearest = COLOR_MAP.find(c => c.code === bestCode) || nearest;
+      }
+      const localAvg = sum / count;
+
+      // Pixel dianggap ink jika lebih gelap dari rata-rata lokal dan di atas batas noise
+      const isInk = (current > NOISE_CUTOFF) && (current >= localAvg - C);
+
+      let nearest = COLOR_MAP.find(c => c.code === "PT");
+
+      if (isInk) {
+        const rgb = colors[y][x];
+        const found = nearestColor(rgb);
+        if (found) {
+          nearest = found;
+        }
       }
 
       const action = nearest.code === "PT" ? "D" : DEFAULT_ACTION;
@@ -259,7 +276,7 @@ function buatSheetVisual(workbook, sheetName, grid) {
   const sheet = workbook.addWorksheet(sheetName);
 
   for (let c = 1; c <= WIDTH; c++) {
-    sheet.getColumn(c).width = 9;
+    sheet.getColumn(c).width = CELL_WIDTH;
   }
 
   for (let y = 0; y < HEIGHT; y++) {
@@ -277,15 +294,16 @@ function buatSheetVisual(workbook, sheetName, grid) {
       const dark = code === "HT" || code === "BT";
 
       cell.font = {
+        name: "Calibri",
         color: { argb: dark ? "FFFFFFFF" : "FF000000" },
         bold: true,
-        size: 9,
+        size: CELL_FONT_SIZE,
       };
 
       cell.alignment = { horizontal: "center", vertical: "middle" };
     }
 
-    sheet.getRow(y + 1).height = 24; // tinggi baris (dalam point, sama seperti openpyxl)
+    sheet.getRow(y + 1).height = CELL_HEIGHT; // tinggi baris (dalam point, sama seperti openpyxl)
   }
 }
 
@@ -299,7 +317,7 @@ function buatSheetDaftar(sheet, frameLabels, allGrids) {
   sheet.addRow(header);
 
   sheet.getRow(1).eachCell((cell) => {
-    cell.font = { bold: true };
+    cell.font = { name: "Calibri", bold: true };
     cell.alignment = { horizontal: "center", vertical: "middle" };
   });
 
@@ -311,7 +329,11 @@ function buatSheetDaftar(sheet, frameLabels, allGrids) {
         rowValues.push(grid.get(`${y},${x}`).value);
       }
 
-      sheet.addRow(rowValues);
+      const row = sheet.addRow(rowValues);
+      row.eachCell((cell) => {
+        cell.font = { name: "Calibri" };
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+      });
     }
   }
 
