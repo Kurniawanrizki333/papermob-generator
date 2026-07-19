@@ -12,6 +12,7 @@
     rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
     :root {
       --ink: #eae7dd;
@@ -26,6 +27,8 @@
       --accent-ink: #3a2400;
       --teal: #5eead4;
       --teal-ink: #04302a;
+      --violet: #c9a6ff;
+      --violet-ink: #2a1454;
       --red: #ff6b6b;
       --red-ink: #3a0d0d;
       --radius: 10px;
@@ -389,6 +392,17 @@
       display: inline-block;
     }
 
+    button.download.pdf {
+      background: var(--violet);
+      color: var(--violet-ink);
+    }
+
+    button.download:disabled {
+      background: var(--panel-2);
+      color: var(--ink-dim);
+      cursor: not-allowed;
+    }
+
     .progress-wrap {
       flex: 1;
       min-width: 180px;
@@ -678,10 +692,16 @@
       <div class="action-row">
         <button class="primary" id="btnConvert">Convert ke Excel</button>
         <button class="download" id="btnDownload">Download hasil_papermob.xlsx</button>
+        <button class="download pdf" id="btnDownloadPdf">Download PDF (kertas kode)</button>
         <div class="progress-wrap" id="progressWrap">
           <div class="progress-bar" id="progressBar"></div>
         </div>
       </div>
+      <div class="empty-hint" id="pdfHint" style="display:none;">PDF berupa daftar kode per posisi: tiap kotak
+        (label 1.1, 1.2, dst) mewakili satu posisi grid (baris.kolom), diurutkan per baris dulu. Isi kotak berupa
+        tabel nomor 1..n (n = jumlah gambar/layer) dengan sel kode berwarna sesuai urutan upload, nomor lanjut ke
+        kolom baru tiap 10 baris, 6 kotak per halaman disusun 3 di atas &amp; 3 di bawah, lengkap dengan legenda
+        kode.</div>
       <div class="console" id="consoleLog"></div>
 
       <!-- PREVIEW SECTION -->
@@ -782,6 +802,15 @@
       let lastBlob = null;
       let lastGrids = []; // simpan grid hasil convert untuk preview
       let lastSheetNames = [];
+      let lastFrameNames = [];
+      let lastW = 0, lastH = 0;
+
+      // Tiap "kotak" pada PDF = satu posisi grid tunggal (baris.kolom).
+      // Isi kotak = tabel bernomor 1..n (n = jumlah gambar/frame di posisi
+      // itu) berisi kode warna tiap frame, tanpa nama gambar. Nomor lanjut
+      // ke pasangan kolom baru tiap 10 baris (mirip kertas kode fisik).
+      // 6 kotak per halaman, diurutkan per baris dulu (1.1, 1.2, ... baris 2).
+      const PDF_BOXES_PER_PAGE = 6;
 
       const el = {
         inpWidth: document.getElementById("inpWidth"),
@@ -796,6 +825,8 @@
         legend: document.getElementById("legend"),
         btnConvert: document.getElementById("btnConvert"),
         btnDownload: document.getElementById("btnDownload"),
+        btnDownloadPdf: document.getElementById("btnDownloadPdf"),
+        pdfHint: document.getElementById("pdfHint"),
         progressWrap: document.getElementById("progressWrap"),
         progressBar: document.getElementById("progressBar"),
         consoleLog: document.getElementById("consoleLog"),
@@ -1127,15 +1158,48 @@
       // ======================================================
       // Build visual sheet
       // ======================================================
+      // Header (nomor baris/kolom) + grid warna + legenda kode di bagian
+      // bawah, meniru tata letak "kertas kode" fisik (docx), dan pageSetup
+      // supaya siap di-export / print jadi PDF dari Excel dengan rapi.
+      const HEADER_FILL = "FFD9D9D9";
+
       function buildSheetVisual(workbook, sheetName, grid, w, h) {
         const sheet = workbook.addWorksheet(sheetName);
 
-        for (let c = 1; c <= w; c++) sheet.getColumn(c).width = CELL_WIDTH;
+        // kolom 1 = nomor baris, kolom 2..w+1 = data pixel
+        sheet.getColumn(1).width = 6;
+        for (let c = 1; c <= w; c++) sheet.getColumn(c + 1).width = CELL_WIDTH;
+
+        // baris header nomor kolom (1..w), setiap kelipatan 10 ditandai
+        const headerRow = sheet.getRow(1);
+        headerRow.getCell(1).value = "";
+        headerRow.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: HEADER_FILL } };
+        for (let x = 0; x < w; x++) {
+          const cell = headerRow.getCell(x + 2);
+          cell.value = x + 1;
+          cell.font = { name: "Calibri", bold: true, size: 8 };
+          cell.alignment = { horizontal: "center", vertical: "middle" };
+          if ((x + 1) % 10 === 0 || x === 0) {
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: HEADER_FILL } };
+          }
+        }
+        headerRow.height = 16;
 
         for (let y = 0; y < h; y++) {
+          const row = sheet.getRow(y + 2);
+
+          // nomor baris (1..h) di kolom paling kiri
+          const rowHeadCell = row.getCell(1);
+          rowHeadCell.value = y + 1;
+          rowHeadCell.font = { name: "Calibri", bold: true, size: 8 };
+          rowHeadCell.alignment = { horizontal: "center", vertical: "middle" };
+          if ((y + 1) % 10 === 0 || y === 0) {
+            rowHeadCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: HEADER_FILL } };
+          }
+
           for (let x = 0; x < w; x++) {
             const { value, hex, code } = grid.get(y + "," + x);
-            const cell = sheet.getCell(y + 1, x + 1);
+            const cell = row.getCell(x + 2);
             cell.value = value;
             cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF" + hex } };
 
@@ -1143,7 +1207,55 @@
             cell.font = { name: "Calibri", color: { argb: dark ? "FFFFFFFF" : "FF000000" }, bold: true, size: CELL_FONT_SIZE };
             cell.alignment = { horizontal: "center", vertical: "middle" };
           }
-          sheet.getRow(y + 1).height = CELL_HEIGHT;
+          row.height = CELL_HEIGHT;
+        }
+
+        buildLegendFooter(sheet, w, h);
+
+        // freeze nomor baris/kolom biar tetap kelihatan saat scroll
+        sheet.views = [{ state: "frozen", xSplit: 1, ySplit: 1 }];
+
+        // page setup supaya siap dicetak / di-export sebagai PDF dari Excel,
+        // mirip kertas kode (grid + nomor + legenda dalam satu halaman/rangkaian halaman)
+        sheet.pageSetup = {
+          paperSize: 9, // A4
+          orientation: "landscape",
+          fitToPage: true,
+          fitToWidth: 1,
+          fitToHeight: 0,
+          horizontalCentered: true,
+          margins: { left: 0.3, right: 0.3, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 },
+        };
+        sheet.pageSetup.printArea = "A1:" + sheet.getColumn(w + 1).letter + (h + 1 + 6);
+        sheet.pageSetup.printTitlesRow = "1:1";
+        sheet.pageSetup.printTitlesColumn = "A:A";
+      }
+
+      // Legenda kode warna di bawah grid, format 2 kolom seperti pada
+      // kertas kode: PT/MR/KN/HT/HJ di kiri, BT/JG/PK/D/B di kanan.
+      function buildLegendFooter(sheet, w, h) {
+        const legendLeft = ["PT \u2013 PUTIH", "MR \u2013 MERAH", "KN \u2013 KUNING", "HT \u2013 HITAM", "HJ \u2013 HIJAU"];
+        const legendRight = ["BT \u2013 BIRU TUA", "JG \u2013 JINGGA", "PK \u2013 PINK", "D \u2013 DUDUK", "B - BERDIRI"];
+        const totalCols = w + 1; // termasuk kolom nomor baris
+        const leftColSpan = Math.max(4, Math.floor(totalCols / 2));
+        const startRow = h + 3;
+
+        for (let i = 0; i < legendLeft.length; i++) {
+          const r = startRow + i;
+
+          sheet.mergeCells(r, 1, r, leftColSpan);
+          const cLeft = sheet.getCell(r, 1);
+          cLeft.value = legendLeft[i];
+          cLeft.font = { name: "Calibri", bold: true, size: 10 };
+          cLeft.alignment = { horizontal: "left", vertical: "middle" };
+
+          if (leftColSpan + 1 <= totalCols) {
+            sheet.mergeCells(r, leftColSpan + 1, r, totalCols);
+            const cRight = sheet.getCell(r, leftColSpan + 1);
+            cRight.value = legendRight[i] || "";
+            cRight.font = { name: "Calibri", bold: true, size: 10 };
+            cRight.alignment = { horizontal: "left", vertical: "middle" };
+          }
         }
       }
 
@@ -1163,8 +1275,22 @@
             const rowValues = [(y + 1) + "." + (x + 1), y + 1, x + 1];
             for (const grid of allGrids) rowValues.push(grid.get(y + "," + x).value);
             const row = sheet.addRow(rowValues);
-            row.eachCell(cell => {
+
+            // kolom Posisi/Row/Col: teks polos
+            [1, 2, 3].forEach(colIdx => {
+              const cell = row.getCell(colIdx);
               cell.font = { name: "Calibri" };
+              cell.alignment = { horizontal: "center", vertical: "middle" };
+            });
+
+            // kolom kode per frame (mis. "PT-D"): diberi warna fill sesuai
+            // kode warnanya, sama seperti di sheet visual
+            allGrids.forEach((grid, i) => {
+              const data = grid.get(y + "," + x);
+              const cell = row.getCell(4 + i);
+              cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF" + data.hex } };
+              const dark = data.code === "HT" || data.code === "BT";
+              cell.font = { name: "Calibri", bold: true, color: { argb: dark ? "FFFFFFFF" : "FF000000" } };
               cell.alignment = { horizontal: "center", vertical: "middle" };
             });
           }
@@ -1176,6 +1302,166 @@
         for (let i = 0; i < frameLabels.length; i++) sheet.getColumn(4 + i).width = 12;
 
         sheet.views = [{ state: "frozen", xSplit: 3, ySplit: 1 }];
+      }
+
+      // ======================================================
+      // Build PDF "kertas kode" — versi daftar per posisi. Satu kotak
+      // (label "1.1") = satu posisi grid tunggal (row 1, col 1). Isi
+      // kotak = tabel nomor 1..n dengan sel kode berwarna untuk tiap
+      // gambar/frame yang diupload (sesuai urutan upload), tanpa nama
+      // gambar. Nomor lanjut ke pasangan kolom baru tiap 10 baris. 6
+      // kotak ditampilkan sebaris per halaman, diurutkan per baris dulu.
+      // ======================================================
+      function hexToRgb(hex) {
+        const n = parseInt(hex, 16);
+        return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+      }
+
+      function drawLegendBlock(doc, x, y, w) {
+        const legendLeft = ["PT \u2013 PUTIH", "MR \u2013 MERAH", "KN \u2013 KUNING", "HT \u2013 HITAM", "HJ \u2013 HIJAU"];
+        const legendRight = ["BT \u2013 BIRU TUA", "JG \u2013 JINGGA", "PK \u2013 PINK", "D \u2013 DUDUK", "B - BERDIRI"];
+        doc.setFontSize(8.5);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(0, 0, 0);
+        for (let i = 0; i < legendLeft.length; i++) {
+          doc.text(legendLeft[i], x, y + i * 5);
+          doc.text(legendRight[i], x + w / 2, y + i * 5);
+        }
+      }
+
+      // Isi kotak = tabel bernomor 1..n (n = jumlah gambar/frame), tanpa
+      // nama gambar. Meniru layout kertas kode fisik: nomor 1-10 di kolom
+      // pertama, begitu lewat 10 lanjut ke pasangan kolom (No|Kode)
+      // berikutnya di sebelah kanan, dst — seperti contoh referensi.
+      // Slot yang tidak punya data (n lebih kecil dari kapasitas kolom)
+      // tetap digambar sebagai sel kosong berborder, tidak dihilangkan.
+      const ROWS_PER_COL = 10;
+
+      function drawSingleKodeBox(doc, box, x, y, w, headerH, tableH) {
+        // border luar kotak + garis pemisah header
+        doc.setDrawColor(0, 0, 0);
+        doc.setLineWidth(0.3);
+        doc.rect(x, y, w, headerH + tableH, "S");
+        doc.line(x, y + headerH, x + w, y + headerH);
+
+        // label kotak, mis. "1.1"
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(11);
+        doc.setTextColor(0, 0, 0);
+        doc.text(box.label, x + w / 2, y + headerH / 2 + 2.2, { align: "center" });
+
+        const n = box.entries.length;
+        const groupsCount = Math.max(1, Math.ceil(n / ROWS_PER_COL));
+        const groupW = w / groupsCount;
+        const noColW = groupW * 0.36;
+        const valColW = groupW - noColW;
+        const rowH = tableH / ROWS_PER_COL;
+        const tableTop = y + headerH;
+
+        doc.setLineWidth(0.15);
+
+        for (let g = 0; g < groupsCount; g++) {
+          const gx = x + g * groupW;
+
+          for (let slot = 0; slot < ROWS_PER_COL; slot++) {
+            const idx = g * ROWS_PER_COL + slot;
+            const ry = tableTop + slot * rowH;
+            const midY = ry + rowH / 2 + 1.1;
+
+            // border sel nomor & sel kode (selalu digambar, walau kosong)
+            doc.setDrawColor(0, 0, 0);
+            doc.rect(gx, ry, noColW, rowH, "S");
+            doc.rect(gx + noColW, ry, valColW, rowH, "S");
+
+            // nomor urut
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(8);
+            doc.setTextColor(0, 0, 0);
+            doc.text(String(idx + 1), gx + noColW / 2, midY, { align: "center" });
+
+            if (idx < n) {
+              const e = box.entries[idx];
+              const [rr, gg, bb] = hexToRgb(e.hex);
+              doc.setFillColor(rr, gg, bb);
+              doc.rect(gx + noColW, ry, valColW, rowH, "F");
+              doc.setDrawColor(0, 0, 0);
+              doc.rect(gx + noColW, ry, valColW, rowH, "S");
+
+              const dark = e.code === "HT" || e.code === "BT";
+              doc.setFont("helvetica", "bold");
+              doc.setFontSize(8);
+              doc.setTextColor(dark ? 255 : 0, dark ? 255 : 0, dark ? 255 : 0);
+              doc.text(e.value || "-", gx + noColW + valColW / 2, midY, { align: "center" });
+            }
+          }
+        }
+      }
+
+      const PDF_BOXES_PER_ROW = 3; // 3 kotak atas, 3 kotak bawah = 6 per halaman
+
+      function drawKodeListPage(doc, boxes) {
+        const pageW = doc.internal.pageSize.getWidth();
+        const pageH = doc.internal.pageSize.getHeight();
+        const marginX = 10;
+        const marginY = 8;
+        const gapX = 5;
+        const gapY = 6;
+        const boxHeaderH = 8;
+        const legendGap = 6;
+        const legendH = 30;
+
+        const numRows = Math.ceil(PDF_BOXES_PER_PAGE / PDF_BOXES_PER_ROW);
+        const boxW = (pageW - marginX * 2 - gapX * (PDF_BOXES_PER_ROW - 1)) / PDF_BOXES_PER_ROW;
+
+        const availableH = pageH - marginY - legendGap - legendH - gapY * (numRows - 1);
+        const boxTotalH = availableH / numRows;
+        const tableH = boxTotalH - boxHeaderH;
+
+        boxes.forEach((box, idx) => {
+          const col = idx % PDF_BOXES_PER_ROW;
+          const row = Math.floor(idx / PDF_BOXES_PER_ROW);
+          const bx = marginX + col * (boxW + gapX);
+          const by = marginY + row * (boxTotalH + gapY);
+          drawSingleKodeBox(doc, box, bx, by, boxW, boxHeaderH, tableH);
+        });
+
+        const ly = marginY + numRows * boxTotalH + (numRows - 1) * gapY + legendGap;
+        drawLegendBlock(doc, marginX, ly, pageW - marginX * 2);
+      }
+
+      async function buildPdfBlob(allGrids, frameNames, W, H) {
+        if (!window.jspdf) throw new Error("jsPDF belum termuat, cek koneksi internet lalu reload halaman.");
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+
+        let first = true;
+
+        for (let r = 0; r < H; r++) {
+          for (let cg = 0; cg < W; cg += PDF_BOXES_PER_PAGE) {
+            if (!first) doc.addPage();
+            first = false;
+
+            const boxesThisPage = Math.min(PDF_BOXES_PER_PAGE, W - cg);
+            const boxes = [];
+            for (let b = 0; b < boxesThisPage; b++) {
+              const c = cg + b;
+              const entries = allGrids.map((grid) => {
+                const data = grid.get(r + "," + c);
+                return {
+                  value: data ? data.value : "",
+                  hex: data ? data.hex : "FFFFFF",
+                  code: data ? data.code : "",
+                };
+              });
+              boxes.push({ label: (r + 1) + "." + (c + 1), entries });
+            }
+
+            drawKodeListPage(doc, boxes);
+          }
+          if (r % 10 === 0) await new Promise(res => setTimeout(res, 0));
+        }
+
+        return doc.output("blob");
       }
 
       // ======================================================
@@ -1294,6 +1580,8 @@
         clearLog();
         el.btnConvert.disabled = true;
         el.btnDownload.classList.remove("show");
+        el.btnDownloadPdf.classList.remove("show");
+        el.pdfHint.style.display = "none";
         el.previewSection.classList.remove("show");
         lastBlob = null;
         lastGrids = [];
@@ -1309,6 +1597,7 @@
           const frameLabels = [];
           const allGrids = [];
           const sheetNames = [];
+          const frameNames = [];
 
           for (let i = 0; i < images.length; i++) {
             const im = images[i];
@@ -1323,6 +1612,7 @@
             frameLabels.push(frameLabel);
             allGrids.push(grid);
             sheetNames.push(sheetName);
+            frameNames.push(im.name);
 
             buildSheetVisual(workbook, sheetName, grid, W, H);
             log("  -> sheet '" + sheetName + "' selesai", "ok");
@@ -1340,15 +1630,20 @@
           lastBlob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
           setProgress(100);
 
-          // simpan grid untuk preview
+          // simpan grid untuk preview & untuk generate PDF on-demand
           lastGrids = allGrids;
           lastSheetNames = sheetNames;
+          lastFrameNames = frameNames;
+          lastW = W;
+          lastH = H;
 
           // render preview
           renderPreview(lastGrids, lastSheetNames, W, H);
 
           log("SELESAI. Total gambar diproses: " + images.length, "ok");
           el.btnDownload.classList.add("show");
+          el.btnDownloadPdf.classList.add("show");
+          el.pdfHint.style.display = "block";
 
         } catch (err) {
           log("Terjadi error: " + err.message, "err");
@@ -1371,6 +1666,29 @@
         a.click();
         document.body.removeChild(a);
         setTimeout(() => URL.revokeObjectURL(url), 2000);
+      });
+
+      el.btnDownloadPdf.addEventListener("click", async () => {
+        if (!lastGrids.length) return;
+        el.btnDownloadPdf.disabled = true;
+        log("Menyusun PDF daftar kode per posisi (" + PDF_BOXES_PER_PAGE + " kotak per halaman)...");
+        try {
+          const blob = await buildPdfBlob(lastGrids, lastFrameNames, lastW, lastH);
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "hasil_papermob_kertas_kode.pdf";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 4000);
+          log("PDF kertas kode selesai dibuat.", "ok");
+        } catch (err) {
+          log("Gagal membuat PDF: " + err.message, "err");
+          console.error(err);
+        } finally {
+          el.btnDownloadPdf.disabled = false;
+        }
       });
 
     })();
