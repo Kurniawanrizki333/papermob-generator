@@ -700,8 +700,8 @@
       <div class="empty-hint" id="pdfHint" style="display:none;">PDF berupa daftar kode per posisi: tiap kotak
         (label 1.1, 1.2, dst) mewakili satu posisi grid (baris.kolom), diurutkan per baris dulu. Isi kotak berupa
         tabel nomor 1..n (n = jumlah gambar/layer) dengan sel kode berwarna sesuai urutan upload, nomor lanjut ke
-        kolom baru tiap 10 baris, 6 kotak per halaman disusun 3 di atas &amp; 3 di bawah, lengkap dengan legenda
-        kode.</div>
+        kolom baru tiap 10 baris, 6 kotak per halaman disusun 3 di atas &amp; 3 di bawah, masing-masing kotak
+        punya legenda kode sendiri di bawahnya.</div>
       <div class="console" id="consoleLog"></div>
 
       <!-- PREVIEW SECTION -->
@@ -1317,15 +1317,15 @@
         return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
       }
 
-      function drawLegendBlock(doc, x, y, w) {
+      function drawLegendBlock(doc, x, y, w, fontSize, lineGap) {
         const legendLeft = ["PT \u2013 PUTIH", "MR \u2013 MERAH", "KN \u2013 KUNING", "HT \u2013 HITAM", "HJ \u2013 HIJAU"];
         const legendRight = ["BT \u2013 BIRU TUA", "JG \u2013 JINGGA", "PK \u2013 PINK", "D \u2013 DUDUK", "B - BERDIRI"];
-        doc.setFontSize(8.5);
+        doc.setFontSize(fontSize);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(0, 0, 0);
         for (let i = 0; i < legendLeft.length; i++) {
-          doc.text(legendLeft[i], x, y + i * 5);
-          doc.text(legendRight[i], x + w / 2, y + i * 5);
+          doc.text(legendLeft[i], x, y + i * lineGap);
+          doc.text(legendRight[i], x + w / 2, y + i * lineGap);
         }
       }
 
@@ -1405,17 +1405,19 @@
         const marginX = 10;
         const marginY = 8;
         const gapX = 5;
-        const gapY = 6;
+        const gapY = 5;
         const boxHeaderH = 8;
-        const legendGap = 6;
-        const legendH = 30;
+        const legendGap = 2.5;
+        const legendFontSize = 6.3;
+        const legendLineGap = 3.3;
+        const legendH = legendLineGap * 5; // 5 baris legenda per kolom
 
         const numRows = Math.ceil(PDF_BOXES_PER_PAGE / PDF_BOXES_PER_ROW);
         const boxW = (pageW - marginX * 2 - gapX * (PDF_BOXES_PER_ROW - 1)) / PDF_BOXES_PER_ROW;
 
-        const availableH = pageH - marginY - legendGap - legendH - gapY * (numRows - 1);
-        const boxTotalH = availableH / numRows;
-        const tableH = boxTotalH - boxHeaderH;
+        const availableH = pageH - marginY * 2 - gapY * (numRows - 1);
+        const boxTotalH = availableH / numRows; // header + tabel + gap + legenda
+        const tableH = boxTotalH - boxHeaderH - legendGap - legendH;
 
         boxes.forEach((box, idx) => {
           const col = idx % PDF_BOXES_PER_ROW;
@@ -1423,10 +1425,10 @@
           const bx = marginX + col * (boxW + gapX);
           const by = marginY + row * (boxTotalH + gapY);
           drawSingleKodeBox(doc, box, bx, by, boxW, boxHeaderH, tableH);
-        });
 
-        const ly = marginY + numRows * boxTotalH + (numRows - 1) * gapY + legendGap;
-        drawLegendBlock(doc, marginX, ly, pageW - marginX * 2);
+          const ly = by + boxHeaderH + tableH + legendGap + 2.6;
+          drawLegendBlock(doc, bx + 1, ly, boxW - 2, legendFontSize, legendLineGap);
+        });
       }
 
       async function buildPdfBlob(allGrids, frameNames, W, H) {
