@@ -612,8 +612,7 @@
       <div class="eyebrow">Papermob</div>
       <h1>Gambar &rarr; grid kode warna &rarr; Excel</h1>
       <p>Unggah gambar, tentukan ukuran grid, dan Papermob akan memetakan tiap pixel ke kode warna terdekat lalu
-        menyusunnya jadi file Excel lengkap dengan sheet visual per gambar dan sheet daftar pixel gabungan.
-        Semua proses
+        menyusunnya jadi file Excel lengkap dengan sheet visual per gambar dan sheet daftar pixel gabungan. Semua proses
         berjalan di browser kamu &mdash; gambar tidak dikirim ke server manapun.</p>
     </header>
 
@@ -643,12 +642,10 @@
             <option value="majority">Super Sampling / Majority Vote (Awal)</option>
           </select>
         </div>
-        <div class="dims-note">Mode <b>Teks / poster</b> menjaga huruf, border, dan ornamen tipis dengan
-          sampling
+        <div class="dims-note">Mode <b>Teks / poster</b> menjaga huruf, border, dan ornamen tipis dengan sampling
           mayoritas warna. Pakai <b>Pixel art</b> kalau gambar memang sudah dibuat persis sesuai grid.</div>
       </div>
-      <div class="warn-line" id="dimsWarn">Grid besar ( &gt; 150 &times; 150 ) bisa memperlambat proses di
-        browser,
+      <div class="warn-line" id="dimsWarn">Grid besar ( &gt; 150 &times; 150 ) bisa memperlambat proses di browser,
         terutama untuk banyak gambar sekaligus.</div>
     </section>
 
@@ -656,8 +653,8 @@
       <h2><span class="num">02</span> Gambar</h2>
       <div class="dropzone" id="dropzone">
         <div class="dz-title">Tarik &amp; taruh gambar / PDF di sini, atau klik untuk pilih file</div>
-        <div class="dz-sub">Mendukung PNG, JPG, WEBP, PDF &middot; bisa pilih banyak file sekaligus &middot;
-          tiap halaman PDF jadi frame terpisah</div>
+        <div class="dz-sub">Mendukung PNG, JPG, WEBP, PDF &middot; bisa pilih banyak file sekaligus &middot; tiap
+          halaman PDF jadi frame terpisah</div>
         <input type="file" id="fileInput" accept="image/*,application/pdf,.pdf" multiple />
       </div>
 
@@ -668,10 +665,8 @@
     <section class="panel">
       <h2><span class="num">03</span> Legenda kode warna</h2>
       <div class="legend" id="legend"></div>
-      <div class="legend-note"><b>Aturan akhiran:</b> akhiran <b>-B</b> (berdiri) diberikan untuk pixel yang
-        menjadi
-        bagian objek utama / area yang dihighlight, sedangkan <b>-D</b> (dasar) untuk pixel background polos.
-        Ini
+      <div class="legend-note"><b>Aturan akhiran:</b> akhiran <b>-B</b> (berdiri) diberikan untuk pixel yang menjadi
+        bagian objek utama / area yang dihighlight, sedangkan <b>-D</b> (dasar) untuk pixel background polos. Ini
         berlaku untuk semua warna &mdash; termasuk putih: kalau putih tersebut bagian dari objek utama, tetap
         <code>PT-B</code>, bukan otomatis <code>PT-D</code>. Contoh: putih di background &rarr;
         <code>PT-D</code>, putih di objek utama &rarr; <code>PT-B</code>, merah &rarr; <code>MR-B</code>.
@@ -690,13 +685,13 @@
       <div class="console" id="consoleLog"></div>
 
       <!-- PREVIEW SECTION -->
-      <div class="preview-section" id="previewSection">
+      <!-- <div class="preview-section" id="previewSection">
         <div class="preview-tabs" id="previewTabs"></div>
         <div class="preview-container" id="previewContainer">
           <div class="preview-grid-wrap" id="previewGrid"></div>
         </div>
         <div class="preview-stats" id="previewStats"></div>
-      </div>
+      </div> -->
     </section>
 
     <footer>papermob &middot; berjalan sepenuhnya di browser, tanpa upload ke server</footer>
@@ -717,25 +712,27 @@
       // CONFIG
       // ======================================================
       const COLOR_MAP = [
-        { rgb: [255, 255, 255], code: "PT", hex: "FFFFFF", name: "Putih" },
-        { rgb: [34, 34, 34], code: "HT", hex: "222222", name: "Hitam" },
-        { rgb: [255, 105, 180], code: "PK", hex: "FF69B4", name: "Pink" },
-        { rgb: [255, 255, 0], code: "KN", hex: "FFFF00", name: "Kuning" },
-        { rgb: [0, 0, 139], code: "BT", hex: "00008B", name: "Biru tua" },
-        { rgb: [255, 0, 0], code: "MR", hex: "FF0000", name: "Merah" },
-        { rgb: [0, 176, 80], code: "HJ", hex: "00B050", name: "Hijau" },
-        { rgb: [255, 165, 0], code: "JG", hex: "FFA500", name: "Jingga" },
+        { rgb: [255, 255, 255], code: "PT", hex: "FFFFFF", name: "Putih", action: "D" },
+        { rgb: [226, 225, 228], code: "PT", hex: "E2E1E4", name: "Abu-abu", action: "B" },
+        { rgb: [34, 34, 34], code: "HT", hex: "222222", name: "Hitam", action: "B" },
+        { rgb: [255, 105, 180], code: "PK", hex: "FF69B4", name: "Pink", action: "B" },
+        { rgb: [255, 255, 0], code: "KN", hex: "FFFF00", name: "Kuning", action: "B" },
+        { rgb: [0, 0, 139], code: "BT", hex: "00008B", name: "Biru tua", action: "B" },
+        { rgb: [255, 0, 0], code: "MR", hex: "FF0000", name: "Merah", action: "B" },
+        { rgb: [0, 176, 80], code: "HJ", hex: "00B050", name: "Hijau", action: "B" },
+        { rgb: [255, 165, 0], code: "JG", hex: "FFA500", name: "Jingga", action: "B" },
       ];
+      // Aturan sekarang murni berdasar warna: setiap entri di atas sudah
+      // membawa akhiran -nya sendiri (action). Kalau nanti ada warna lain
+      // yang juga perlu punya versi "duduk" & "berdiri", tinggal tambah
+      // entri baru di sini dengan code yang sama tapi rgb/hex/action beda
+      // (seperti pasangan Putih-D & Abu-abu-B di atas).
       const INK_THRESHOLD = 15;
 
       // Excel Grid Cell Dimensions
       const CELL_WIDTH = 8.66;
       const CELL_HEIGHT = 45;
       const CELL_FONT_SIZE = 11;
-
-      function actionFor(code) {
-        return code === "PT" ? "D" : "B";
-      }
 
       function nearestColor(r, g, b) {
         let bestDist = Infinity, best = null;
@@ -777,14 +774,6 @@
         return best;
       }
 
-      function colorDistanceToWhite(r, g, b) {
-        return Math.sqrt((255 - r) ** 2 + (255 - g) ** 2 + (255 - b) ** 2);
-      }
-
-      function isInkPixel(r, g, b) {
-        return colorDistanceToWhite(r, g, b) >= INK_THRESHOLD;
-      }
-
       // ======================================================
       // STATE
       // ======================================================
@@ -822,12 +811,11 @@
       function renderLegend() {
         el.legend.innerHTML = "";
         for (const ref of COLOR_MAP) {
-          const action = actionFor(ref.code);
           const div = document.createElement("div");
           div.className = "swatch";
           div.innerHTML =
             '<div class="chip" style="background:#' + ref.hex + '"></div>' +
-            '<div class="lbl">' + ref.name + '<br><span class="code">' + ref.code + '-' + action + '</span></div>';
+            '<div class="lbl">' + ref.name + '<br><span class="code">' + ref.code + '-' + ref.action + '</span></div>';
           el.legend.appendChild(div);
         }
       }
@@ -1064,203 +1052,60 @@
         const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
         const grid = new Map();
 
-        if (method === "majority") {
-          // --- METODE AWAL: Super Sampling & Majority Vote ---
-          const SUPER_SAMPLE = scale;
-          const MIN_INK_COVERAGE = 0.15;
+        // Sekarang status berdiri (-B) / duduk (-D) murni ditentukan oleh
+        // warna mana yang paling cocok (lihat COLOR_MAP): Putih murni -> D,
+        // warna lain (termasuk Abu-abu, dan hitam/merah/dst) -> B. Tidak ada
+        // lagi analisis struktur/lubang/jepitan.
+        //
+        // "method" cuma menentukan cara SAMPLING tiap sel:
+        // - "majority": kalau selnya di-supersample (mode teks/poster),
+        //   ambil suara terbanyak dari beberapa sub-pixel di dalam sel.
+        // - selain itu: ambil 1 sample per sel (cocok untuk pixel art yang
+        //   memang sudah presisi per-grid).
+        const SUPER_SAMPLE = (method === "majority") ? scale : 1;
 
-          for (let y = 0; y < h; y++) {
-            for (let x = 0; x < w; x++) {
-              let ref = COLOR_MAP[0];
+        function sampleRGB(px, py) {
+          const idx = (py * canvas.width + px) * 4;
+          const alpha = data[idx + 3] / 255;
+          const r = Math.round(data[idx] * alpha + 255 * (1 - alpha));
+          const g = Math.round(data[idx + 1] * alpha + 255 * (1 - alpha));
+          const b = Math.round(data[idx + 2] * alpha + 255 * (1 - alpha));
+          return [r, g, b];
+        }
 
-              if (SUPER_SAMPLE > 1) {
-                const counts = {};
-                let inkPixels = 0;
-
-                for (let by = 0; by < SUPER_SAMPLE; by++) {
-                  for (let bx = 0; bx < SUPER_SAMPLE; bx++) {
-                    const px = x * SUPER_SAMPLE + bx;
-                    const py = y * SUPER_SAMPLE + by;
-                    const idx = (py * canvas.width + px) * 4;
-                    const alpha = data[idx + 3] / 255;
-                    const r = Math.round(data[idx] * alpha + 255 * (1 - alpha));
-                    const g = Math.round(data[idx + 1] * alpha + 255 * (1 - alpha));
-                    const b = Math.round(data[idx + 2] * alpha + 255 * (1 - alpha));
-
-                    if (!isInkPixel(r, g, b)) continue;
-
-                    const nearest = nearestColor(r, g, b);
-                    if (nearest.code === "PT") continue;
-                    inkPixels++;
-                    counts[nearest.code] = (counts[nearest.code] || 0) + 1;
-                  }
-                }
-
-                if (inkPixels / (SUPER_SAMPLE * SUPER_SAMPLE) >= MIN_INK_COVERAGE) {
-                  let bestCode = null;
-                  let bestCount = -1;
-                  for (const code in counts) {
-                    if (counts[code] > bestCount) {
-                      bestCode = code;
-                      bestCount = counts[code];
-                    }
-                  }
-                  ref = COLOR_MAP.find(c => c.code === bestCode) || ref;
-                }
-              } else {
-                const idx = (y * canvas.width + x) * 4;
-                const alpha = data[idx + 3] / 255;
-                const r = Math.round(data[idx] * alpha + 255 * (1 - alpha));
-                const g = Math.round(data[idx + 1] * alpha + 255 * (1 - alpha));
-                const b = Math.round(data[idx + 2] * alpha + 255 * (1 - alpha));
-                ref = nearestColor(r, g, b);
-              }
-
-              const action = actionFor(ref.code);
-              const value = ref.code + "-" + action;
-              grid.set(y + "," + x, { value, hex: ref.hex, code: ref.code, action });
-            }
-          }
-        } else {
-          // --- METODE SEKARANG: Adaptive Local Thresholding ---
-          // 1. Hitung inkiness untuk semua pixel
-          const inkiness = [];
-          const colors = [];
-          for (let y = 0; y < h; y++) {
-            inkiness[y] = [];
-            colors[y] = [];
-            for (let x = 0; x < w; x++) {
-              const idx = (y * canvas.width + x) * 4;
-              const alpha = data[idx + 3] / 255;
-              const r = Math.round(data[idx] * alpha + 255 * (1 - alpha));
-              const g = Math.round(data[idx + 1] * alpha + 255 * (1 - alpha));
-              const b = Math.round(data[idx + 2] * alpha + 255 * (1 - alpha));
-
-              inkiness[y][x] = colorDistanceToWhite(r, g, b);
-              colors[y][x] = { r, g, b };
-            }
-          }
-
-          // 2. Terapkan Adaptive Thresholding -> klasifikasi ink per-pixel awal
-          const S = 2; // Radius window (5x5)
-          const C = 15; // Offset toleransi
-          const NOISE_CUTOFF = INK_THRESHOLD; // Gunakan INK_THRESHOLD sebagai cutoff noise
-
-          const isInkGrid = [];
-          for (let y = 0; y < h; y++) {
-            isInkGrid[y] = [];
-            for (let x = 0; x < w; x++) {
-              const current = inkiness[y][x];
-
-              let sum = 0;
-              let count = 0;
-              for (let dy = -S; dy <= S; dy++) {
-                for (let dx = -S; dx <= S; dx++) {
-                  const ny = y + dy;
-                  const nx = x + dx;
-                  if (ny >= 0 && ny < h && nx >= 0 && nx < w) {
-                    sum += inkiness[ny][nx];
-                    count++;
-                  }
-                }
-              }
-              const localAvg = sum / count;
-
-              // Pixel dianggap ink jika lebih gelap dari rata-rata lokal dan di atas batas noise
-              isInkGrid[y][x] = (current > NOISE_CUTOFF) && (current >= localAvg - C);
-            }
-          }
-
-          // 3a. Deteksi pixel putih yang "terjepit" di antara warna dalam
-          // jarak dekat (bukan cuma lubang tertutup sempurna). Kalau ada
-          // pixel ink dalam MAX_GAP langkah ke kiri DAN kanan, atau ke atas
-          // DAN bawah, berarti pixel ini "diantara" objek -> bagian objek utama.
-          const MAX_GAP = 3; // jarak maksimum dianggap "diantara"
-          function hasInkTowards(y, x, dy, dx) {
-            for (let step = 1; step <= MAX_GAP; step++) {
-              const ny = y + dy * step;
-              const nx = x + dx * step;
-              if (ny < 0 || ny >= h || nx < 0 || nx >= w) return false;
-              if (isInkGrid[ny][nx]) return true;
-            }
-            return false;
-          }
-          const isSandwichedGrid = [];
-          for (let y = 0; y < h; y++) {
-            isSandwichedGrid[y] = [];
-            for (let x = 0; x < w; x++) {
-              if (isInkGrid[y][x]) { isSandwichedGrid[y][x] = false; continue; }
-              const horiz = hasInkTowards(y, x, 0, -1) && hasInkTowards(y, x, 0, 1);
-              const vert = hasInkTowards(y, x, -1, 0) && hasInkTowards(y, x, 1, 0);
-              isSandwichedGrid[y][x] = horiz || vert;
-            }
-          }
-
-          // 3b. Tutup "lubang": pixel non-ink (mis. putih) yang terkurung di
-          // tengah-tengah area ink (bukan tersambung ke tepi kanvas) tetap
-          // dianggap bagian objek utama/highlight -> tetap -B, bukan -D.
-          // Deteksi via flood-fill dari tepi kanvas: hanya area non-ink yang
-          // tersambung ke tepi yang dianggap background asli.
-          const reachedBg = [];
-          for (let y = 0; y < h; y++) reachedBg.push(new Array(w).fill(false));
-
-          const queue = [];
-          let qHead = 0;
-          function tryEnqueue(y, x) {
-            if (y < 0 || y >= h || x < 0 || x >= w) return;
-            if (isInkGrid[y][x]) return;
-            if (reachedBg[y][x]) return;
-            reachedBg[y][x] = true;
-            queue.push([y, x]);
-          }
+        for (let y = 0; y < h; y++) {
           for (let x = 0; x < w; x++) {
-            tryEnqueue(0, x);
-            tryEnqueue(h - 1, x);
-          }
-          for (let y = 0; y < h; y++) {
-            tryEnqueue(y, 0);
-            tryEnqueue(y, w - 1);
-          }
-          while (qHead < queue.length) {
-            const [cy, cx] = queue[qHead++];
-            tryEnqueue(cy - 1, cx);
-            tryEnqueue(cy + 1, cx);
-            tryEnqueue(cy, cx - 1);
-            tryEnqueue(cy, cx + 1);
-          }
+            let chosen;
 
-          // 4. Assign akhir: pixel non-ink yang TIDAK tersambung ke tepi
-          // (lubang terkurung) ATAU terjepit di antara ink dalam jarak dekat
-          // direklasifikasi jadi bagian objek utama.
-          for (let y = 0; y < h; y++) {
-            for (let x = 0; x < w; x++) {
-              const isEnclosedHole = !isInkGrid[y][x] && !reachedBg[y][x];
-              const isInk = isInkGrid[y][x] || isEnclosedHole || isSandwichedGrid[y][x];
-
-              let nearest = COLOR_MAP.find(c => c.code === "PT");
-
-              if (isInk) {
-                const rgb = colors[y][x];
-                const found = nearestColor(rgb.r, rgb.g, rgb.b);
-                if (found) {
-                  nearest = found;
+            if (SUPER_SAMPLE > 1) {
+              const counts = {};
+              for (let by = 0; by < SUPER_SAMPLE; by++) {
+                for (let bx = 0; bx < SUPER_SAMPLE; bx++) {
+                  const px = x * SUPER_SAMPLE + bx;
+                  const py = y * SUPER_SAMPLE + by;
+                  const [r, g, b] = sampleRGB(px, py);
+                  const entry = nearestColor(r, g, b);
+                  const key = entry.code + "-" + entry.action;
+                  counts[key] = (counts[key] || 0) + 1;
                 }
               }
-
-              // Akhiran ditentukan oleh status ink (bagian objek utama) atau bukan,
-              // BUKAN oleh warnanya. Jadi putih yang jadi bagian objek utama
-              // (termasuk lubang/celah putih di antara highlight) tetap -B,
-              // dan hanya putih background asli (tersambung ke tepi, tidak
-              // terjepit warna) yang dapat -D.
-              const action = isInk ? "B" : "D";
-              const value = nearest.code + "-" + action;
-              grid.set(y + "," + x, { value, hex: nearest.hex, code: nearest.code, action });
+              let bestKey = null, bestCount = -1;
+              for (const key in counts) {
+                if (counts[key] > bestCount) { bestKey = key; bestCount = counts[key]; }
+              }
+              const [bestCode, bestAction] = bestKey.split("-");
+              chosen = COLOR_MAP.find(c => c.code === bestCode && c.action === bestAction);
+            } else {
+              const [r, g, b] = sampleRGB(x, y);
+              chosen = nearestColor(r, g, b);
             }
+
+            const value = chosen.code + "-" + chosen.action;
+            grid.set(y + "," + x, { value, hex: chosen.hex, code: chosen.code, action: chosen.action });
           }
         }
         return grid;
       }
-
       // ======================================================
       // Sheet name uniqueness
       // ======================================================
