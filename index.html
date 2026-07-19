@@ -1351,7 +1351,7 @@
         doc.text(box.label, x + w / 2, y + headerH / 2 + 2.2, { align: "center" });
 
         const n = box.entries.length;
-        const groupsCount = Math.max(1, Math.ceil(n / ROWS_PER_COL));
+        const groupsCount = Math.max(4, Math.ceil(n / ROWS_PER_COL));
         const groupW = w / groupsCount;
         const noColW = groupW * 0.36;
         const valColW = groupW - noColW;
