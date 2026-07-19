@@ -11,6 +11,7 @@
     href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
     rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <style>
     :root {
       --ink: #eae7dd;
@@ -611,7 +612,8 @@
       <div class="eyebrow">Papermob</div>
       <h1>Gambar &rarr; grid kode warna &rarr; Excel</h1>
       <p>Unggah gambar, tentukan ukuran grid, dan Papermob akan memetakan tiap pixel ke kode warna terdekat lalu
-        menyusunnya jadi file Excel lengkap dengan sheet visual per gambar dan sheet daftar pixel gabungan. Semua proses
+        menyusunnya jadi file Excel lengkap dengan sheet visual per gambar dan sheet daftar pixel gabungan.
+        Semua proses
         berjalan di browser kamu &mdash; gambar tidak dikirim ke server manapun.</p>
     </header>
 
@@ -629,9 +631,9 @@
         <div class="field">
           <label for="inpMode">Mode gambar</label>
           <select id="inpMode">
-            <option value="text" selected>Teks / poster</option>
+            <option value="text">Teks / poster</option>
             <option value="auto">Otomatis</option>
-            <option value="pixel">Pixel art</option>
+            <option value="pixel" selected>Pixel art</option>
           </select>
         </div>
         <div class="field">
@@ -641,19 +643,22 @@
             <option value="majority">Super Sampling / Majority Vote (Awal)</option>
           </select>
         </div>
-        <div class="dims-note">Mode <b>Teks / poster</b> menjaga huruf, border, dan ornamen tipis dengan sampling
+        <div class="dims-note">Mode <b>Teks / poster</b> menjaga huruf, border, dan ornamen tipis dengan
+          sampling
           mayoritas warna. Pakai <b>Pixel art</b> kalau gambar memang sudah dibuat persis sesuai grid.</div>
       </div>
-      <div class="warn-line" id="dimsWarn">Grid besar ( &gt; 150 &times; 150 ) bisa memperlambat proses di browser,
+      <div class="warn-line" id="dimsWarn">Grid besar ( &gt; 150 &times; 150 ) bisa memperlambat proses di
+        browser,
         terutama untuk banyak gambar sekaligus.</div>
     </section>
 
     <section class="panel">
       <h2><span class="num">02</span> Gambar</h2>
       <div class="dropzone" id="dropzone">
-        <div class="dz-title">Tarik &amp; taruh gambar di sini, atau klik untuk pilih file</div>
-        <div class="dz-sub">Mendukung PNG, JPG, WEBP &middot; bisa pilih banyak file sekaligus</div>
-        <input type="file" id="fileInput" accept="image/*" multiple />
+        <div class="dz-title">Tarik &amp; taruh gambar / PDF di sini, atau klik untuk pilih file</div>
+        <div class="dz-sub">Mendukung PNG, JPG, WEBP, PDF &middot; bisa pilih banyak file sekaligus &middot;
+          tiap halaman PDF jadi frame terpisah</div>
+        <input type="file" id="fileInput" accept="image/*,application/pdf,.pdf" multiple />
       </div>
 
       <div class="imglist" id="imgList"></div>
@@ -663,8 +668,10 @@
     <section class="panel">
       <h2><span class="num">03</span> Legenda kode warna</h2>
       <div class="legend" id="legend"></div>
-      <div class="legend-note"><b>Aturan akhiran:</b> akhiran <b>-B</b> (berdiri) diberikan untuk pixel yang menjadi
-        bagian objek utama / area yang dihighlight, sedangkan <b>-D</b> (dasar) untuk pixel background polos. Ini
+      <div class="legend-note"><b>Aturan akhiran:</b> akhiran <b>-B</b> (berdiri) diberikan untuk pixel yang
+        menjadi
+        bagian objek utama / area yang dihighlight, sedangkan <b>-D</b> (dasar) untuk pixel background polos.
+        Ini
         berlaku untuk semua warna &mdash; termasuk putih: kalau putih tersebut bagian dari objek utama, tetap
         <code>PT-B</code>, bukan otomatis <code>PT-D</code>. Contoh: putih di background &rarr;
         <code>PT-D</code>, putih di objek utama &rarr; <code>PT-B</code>, merah &rarr; <code>MR-B</code>.
@@ -697,6 +704,14 @@
 
   <script>
     (function () {
+
+      // ======================================================
+      // PDF.js worker config
+      // ======================================================
+      if (window.pdfjsLib) {
+        pdfjsLib.GlobalWorkerOptions.workerSrc =
+          "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+      }
 
       // ======================================================
       // CONFIG
@@ -849,14 +864,70 @@
       );
       el.dropzone.addEventListener("drop", e => addFiles(e.dataTransfer.files));
 
-      function addFiles(fileList) {
-        for (const file of fileList) {
+      function isPdfFile(file) {
+        return file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+      }
+
+      // Render tiap halaman PDF jadi satu entri "gambar" (PNG) terpisah,
+      // supaya bisa lewat pipeline yang sama persis seperti file gambar biasa.
+      async function pdfToImageEntries(file) {
+        if (!window.pdfjsLib) {
+          throw new Error("pdf.js belum termuat, cek koneksi internet lalu reload halaman.");
+        }
+        const buf = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+        const baseName = file.name.replace(/\.[^.]+$/, "");
+        const entries = [];
+
+        for (let p = 1; p <= pdf.numPages; p++) {
+          const page = await pdf.getPage(p);
+          const baseViewport = page.getViewport({ scale: 1 });
+          // render di resolusi cukup tinggi supaya sampling grid tetap akurat
+          const targetLong = 1800;
+          const longSide = Math.max(baseViewport.width, baseViewport.height);
+          const scale = Math.min(4, Math.max(1, targetLong / longSide));
+          const viewport = page.getViewport({ scale });
+
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.round(viewport.width);
+          canvas.height = Math.round(viewport.height);
+          const ctx = canvas.getContext("2d");
+          ctx.fillStyle = "#FFFFFF";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          await page.render({ canvasContext: ctx, viewport }).promise;
+
+          const blob = await new Promise(res => canvas.toBlob(res, "image/png"));
+          const url = URL.createObjectURL(blob);
+          const name = pdf.numPages > 1 ? (baseName + "_hal" + p) : baseName;
+
+          entries.push({ id: "img" + (idSeq++), file, url, name, w: null, h: null });
+        }
+        return entries;
+      }
+
+      async function addFiles(fileList) {
+        const files = Array.from(fileList);
+
+        for (const file of files) {
+          if (isPdfFile(file)) {
+            try {
+              log("Membuka PDF: " + file.name + " ...");
+              const entries = await pdfToImageEntries(file);
+              images.push(...entries);
+              log("  -> " + entries.length + " halaman dimuat dari '" + file.name + "'", "ok");
+            } catch (err) {
+              log("Gagal membuka PDF '" + file.name + "': " + err.message, "err");
+            }
+            continue;
+          }
+
           if (!file.type.startsWith("image/")) continue;
           const id = "img" + (idSeq++);
           const url = URL.createObjectURL(file);
           const baseName = file.name.replace(/\.[^.]+$/, "");
           images.push({ id, file, url, name: baseName, w: null, h: null });
         }
+
         el.fileInput.value = "";
         renderImgList();
         // sembunyikan preview jika ada gambar baru
