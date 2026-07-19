@@ -663,9 +663,11 @@
     <section class="panel">
       <h2><span class="num">03</span> Legenda kode warna</h2>
       <div class="legend" id="legend"></div>
-      <div class="legend-note"><b>Aturan akhiran:</b> pixel berwarna putih selalu diberi akhiran <b>-D</b>, sedangkan
-        semua warna lain diberi akhiran <b>-B</b>. Contoh: putih &rarr; <code>PT-D</code>, merah &rarr;
-        <code>MR-B</code>.
+      <div class="legend-note"><b>Aturan akhiran:</b> akhiran <b>-B</b> (berdiri) diberikan untuk pixel yang menjadi
+        bagian objek utama / area yang dihighlight, sedangkan <b>-D</b> (dasar) untuk pixel background polos. Ini
+        berlaku untuk semua warna &mdash; termasuk putih: kalau putih tersebut bagian dari objek utama, tetap
+        <code>PT-B</code>, bukan otomatis <code>PT-D</code>. Contoh: putih di background &rarr;
+        <code>PT-D</code>, putih di objek utama &rarr; <code>PT-B</code>, merah &rarr; <code>MR-B</code>.
       </div>
     </section>
 
@@ -1045,7 +1047,7 @@
 
               const action = actionFor(ref.code);
               const value = ref.code + "-" + action;
-              grid.set(y + "," + x, { value, hex: ref.hex, code: ref.code });
+              grid.set(y + "," + x, { value, hex: ref.hex, code: ref.code, action });
             }
           }
         } else {
@@ -1068,12 +1070,14 @@
             }
           }
 
-          // 2. Terapkan Adaptive Thresholding
+          // 2. Terapkan Adaptive Thresholding -> klasifikasi ink per-pixel awal
           const S = 2; // Radius window (5x5)
           const C = 15; // Offset toleransi
           const NOISE_CUTOFF = INK_THRESHOLD; // Gunakan INK_THRESHOLD sebagai cutoff noise
 
+          const isInkGrid = [];
           for (let y = 0; y < h; y++) {
+            isInkGrid[y] = [];
             for (let x = 0; x < w; x++) {
               const current = inkiness[y][x];
 
@@ -1092,7 +1096,75 @@
               const localAvg = sum / count;
 
               // Pixel dianggap ink jika lebih gelap dari rata-rata lokal dan di atas batas noise
-              const isInk = (current > NOISE_CUTOFF) && (current >= localAvg - C);
+              isInkGrid[y][x] = (current > NOISE_CUTOFF) && (current >= localAvg - C);
+            }
+          }
+
+          // 3a. Deteksi pixel putih yang "terjepit" di antara warna dalam
+          // jarak dekat (bukan cuma lubang tertutup sempurna). Kalau ada
+          // pixel ink dalam MAX_GAP langkah ke kiri DAN kanan, atau ke atas
+          // DAN bawah, berarti pixel ini "diantara" objek -> bagian objek utama.
+          const MAX_GAP = 3; // jarak maksimum dianggap "diantara"
+          function hasInkTowards(y, x, dy, dx) {
+            for (let step = 1; step <= MAX_GAP; step++) {
+              const ny = y + dy * step;
+              const nx = x + dx * step;
+              if (ny < 0 || ny >= h || nx < 0 || nx >= w) return false;
+              if (isInkGrid[ny][nx]) return true;
+            }
+            return false;
+          }
+          const isSandwichedGrid = [];
+          for (let y = 0; y < h; y++) {
+            isSandwichedGrid[y] = [];
+            for (let x = 0; x < w; x++) {
+              if (isInkGrid[y][x]) { isSandwichedGrid[y][x] = false; continue; }
+              const horiz = hasInkTowards(y, x, 0, -1) && hasInkTowards(y, x, 0, 1);
+              const vert = hasInkTowards(y, x, -1, 0) && hasInkTowards(y, x, 1, 0);
+              isSandwichedGrid[y][x] = horiz || vert;
+            }
+          }
+
+          // 3b. Tutup "lubang": pixel non-ink (mis. putih) yang terkurung di
+          // tengah-tengah area ink (bukan tersambung ke tepi kanvas) tetap
+          // dianggap bagian objek utama/highlight -> tetap -B, bukan -D.
+          // Deteksi via flood-fill dari tepi kanvas: hanya area non-ink yang
+          // tersambung ke tepi yang dianggap background asli.
+          const reachedBg = [];
+          for (let y = 0; y < h; y++) reachedBg.push(new Array(w).fill(false));
+
+          const queue = [];
+          let qHead = 0;
+          function tryEnqueue(y, x) {
+            if (y < 0 || y >= h || x < 0 || x >= w) return;
+            if (isInkGrid[y][x]) return;
+            if (reachedBg[y][x]) return;
+            reachedBg[y][x] = true;
+            queue.push([y, x]);
+          }
+          for (let x = 0; x < w; x++) {
+            tryEnqueue(0, x);
+            tryEnqueue(h - 1, x);
+          }
+          for (let y = 0; y < h; y++) {
+            tryEnqueue(y, 0);
+            tryEnqueue(y, w - 1);
+          }
+          while (qHead < queue.length) {
+            const [cy, cx] = queue[qHead++];
+            tryEnqueue(cy - 1, cx);
+            tryEnqueue(cy + 1, cx);
+            tryEnqueue(cy, cx - 1);
+            tryEnqueue(cy, cx + 1);
+          }
+
+          // 4. Assign akhir: pixel non-ink yang TIDAK tersambung ke tepi
+          // (lubang terkurung) ATAU terjepit di antara ink dalam jarak dekat
+          // direklasifikasi jadi bagian objek utama.
+          for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x++) {
+              const isEnclosedHole = !isInkGrid[y][x] && !reachedBg[y][x];
+              const isInk = isInkGrid[y][x] || isEnclosedHole || isSandwichedGrid[y][x];
 
               let nearest = COLOR_MAP.find(c => c.code === "PT");
 
@@ -1104,9 +1176,14 @@
                 }
               }
 
-              const action = nearest.code === "PT" ? "D" : "B";
+              // Akhiran ditentukan oleh status ink (bagian objek utama) atau bukan,
+              // BUKAN oleh warnanya. Jadi putih yang jadi bagian objek utama
+              // (termasuk lubang/celah putih di antara highlight) tetap -B,
+              // dan hanya putih background asli (tersambung ke tepi, tidak
+              // terjepit warna) yang dapat -D.
+              const action = isInk ? "B" : "D";
               const value = nearest.code + "-" + action;
-              grid.set(y + "," + x, { value, hex: nearest.hex, code: nearest.code });
+              grid.set(y + "," + x, { value, hex: nearest.hex, code: nearest.code, action });
             }
           }
         }
@@ -1245,12 +1322,13 @@
               cell.style.width = cellSize + "px";
               cell.style.height = cellSize + "px";
               cell.style.fontSize = Math.max(5, Math.min(9, cellSize * 0.3)) + "px";
+              const suffix = data.action || actionFor(data.code);
               cell.innerHTML = `<span class="cell-code">${data.code}</span>`;
               // tambahkan value kecil di bawah untuk grid kecil
               if (cellSize > 20) {
-                cell.innerHTML += `<span class="cell-value">-${actionFor(data.code)}</span>`;
+                cell.innerHTML += `<span class="cell-value">-${suffix}</span>`;
               }
-              cell.title = data.code + "-" + actionFor(data.code) + " (#" + data.hex + ")";
+              cell.title = data.code + "-" + suffix + " (#" + data.hex + ")";
             }
             row.appendChild(cell);
           }
